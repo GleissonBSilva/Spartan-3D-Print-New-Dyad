@@ -1,0 +1,379 @@
+// Prisma Schema para Spartan 3D Print SaaS Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== USUÁRIOS E AUTENTICAÇÃO =====================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  name              String
+  companyName       String?
+  role              UserRole  @default(CLIENT)
+  status            UserStatus @default(ACTIVE)
+  planId            String?
+  plan              Plan?     @relation(fields: [planId], references: [id])
+  credits           Int       @default(25000)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  invoices          Invoice[]
+  projects          Project[]
+  printers          Printer[]
+  filaments         Filamento[]
+  sessions          Session[]
+  notifications     Notification[]
+  
+  @@index([email])
+  @@index([planId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// ===================== PLANOS E SUBSCRIÇÕES =====================
+
+model Plan {
+  id                String    @id @default(cuid())
+  name              String
+  description       String
+  price             Float
+  currency          String    @default("BRL")
+  billingCycle      BillingCycle @default(MONTHLY)
+  maxPrinters       Int
+  maxFilaments      Int
+  maxProjects       Int
+  aiCredits         Int       @default(25000)
+  maxTeamMembers    Int       @default(1)
+  features          String[]
+  badge             String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  users             User[]
+  invoices          Invoice[]
+  
+  @@index([active])
+}
+
+// ===================== FATURAMENTO =====================
+
+model Invoice {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  planId            String?
+  plan              Plan?         @relation(fields: [planId], references: [id])
+  amount            Float
+  currency          String        @default("BRL")
+  status            InvoiceStatus @default(PENDING)
+  method            PaymentMethod
+  dueDate           DateTime
+  paidAt            DateTime?
+  metadata          Json?
+  stripeInvoiceId   String?
+  mercadoPagoId     String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@index([userId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ===================== ESTOQUE DE FILAMENTOS =====================
+
+model Filamento {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  tipo              FilamentType
+  cor               String
+  corHex            String
+  pesoTotalG        Int
+  pesoRestanteG     Int
+  precoKg           Float
+  fornecedor        String?
+  dataCompra        DateTime?
+  lote              String?
+  observacoes       String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Relações
+  projectMaterials  ProjectMaterial[]
+  
+  @@index([userId])
+  @@index([tipo])
+}
+
+// ===================== PARQUE DE IMPRESSORAS =====================
+
+model Printer {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  nome              String
+  marca             String
+  modelo            String
+  tipo              PrinterType
+  tecnologia        PrinterTechnology @default(FDM)
+  potenciaWatts     Int               @default(350)
+  volumeBuildX      Float
+  volumeBuildY      Float
+  volumeBuildZ      Float
+  status            PrinterStatus     @default(OFFLINE)
+  meta               Json?
+  lastActivity      DateTime?
+  ip                String?
+  port              Int?
+  apiKey            String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relações
+  projects          Project[]
+  
+  @@index([userId])
+  @@index([status])
+}
+
+// ===================== PROJETOS E ORÇAMENTOS =====================
+
+model Project {
+  id                String                @id @default(cuid())
+  userId            String
+  user              User                  @relation(fields: [userId], references: [id])
+  printerId         String?
+  printer           Printer?              @relation(fields: [printerId], references: [id])
+  nomePeca          String
+  clienteNome       String
+  pesoEstimadoG     Float
+  tempoEstimadoHoras Float
+  custoMaterial     Float
+  custoEnergia      Float
+  custoDepreciacao  Float
+  custoMaoDeObra    Float
+  outrosCustos      Float                 @default(0)
+  custoTotal        Float
+  margemLucroPercentual Float
+  precoCobrado      Float
+  lucroLiquido      Float
+  status            ProjectStatus         @default(ORCAMENTO)
+  observacoes       String?
+  gcodeData         Json?
+  threeDFile        String?
+  threeDFileUrl     String?
+  estoqueBaixado    Boolean               @default(false)
+  dataCriacao       DateTime              @default(now())
+  dataAtualizacao   DateTime              @updatedAt
+  dataConclusao     DateTime?
+  
+  // Relações
+  materials         ProjectMaterial[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([printerId])
+}
+
+model ProjectMaterial {
+  id                String      @id @default(cuid())
+  projectId         String
+  project           Project     @relation(fields: [projectId], references: [id])
+  filamentoId       String?
+  filamento         Filamento?  @relation(fields: [filamentoId], references: [id])
+  materialName      String
+  color             String
+  colorHex          String
+  filamentType      String
+  weightGrams       Int
+  costPerGram       Float
+  totalCost         Float
+  
+  @@index([projectId])
+  @@index([filamentoId])
+}
+
+// ===================== INTELIGÊNCIA ARTIFICIAL =====================
+
+model AIConversation {
+  id                String   @id @default(cuid())
+  userId            String
+  question          String
+  answer            String
+  context           Json?
+  model             String   @default("gpt-4")
+  tokensUsed        Int      @default(0)
+  cost              Float    @default(0)
+  createdAt         DateTime @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ===================== NOTIFICAÇÕES =====================
+
+model Notification {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  type              NotificationType
+  title             String
+  message           String
+  data              Json?
+  read              Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  
+  @@index([userId])
+  @@index([read])
+}
+
+// ===================== WEBHOOKS E INTEGRAÇÕES =====================
+
+model Webhook {
+  id                String   @id @default(cuid())
+  userId            String
+  url               String
+  events            String[]
+  secret            String?
+  active            Boolean  @default(true)
+  lastTriggered     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([active])
+}
+
+model WebhookLog {
+  id                String   @id @default(cuid())
+  webhookId         String
+  eventType         String
+  payload           Json
+  responseStatus    Int?
+  responseBody      String?
+  duration          Int?
+  success           Boolean
+  createdAt         DateTime @default(now())
+  
+  @@index([webhookId])
+  @@index([createdAt])
+}
+
+// ===================== ENUMS =====================
+
+enum UserRole {
+  ADMIN
+  CLIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  PIX
+  BOLETO
+  PAYPAL
+  STRIPE
+  MERCADO_PAGO
+}
+
+enum FilamentType {
+  PLA
+  ABS
+  PETG
+  TPU
+  NYLON
+  ASA
+  PC
+  RESIN_SLA
+  RESIN_DLP
+  OTHER
+}
+
+enum PrinterType {
+  FDM
+  SLA
+  DLP
+  SLS
+  MJ
+  CLIP
+}
+
+enum PrinterTechnology {
+  FDM
+  SLA
+  DLP
+  SLS
+  MJ
+  CLIP
+}
+
+enum PrinterStatus {
+  ONLINE
+  OFFLINE
+  PRINTING
+  ERROR
+  MAINTENANCE
+  HEATING
+  COOLING
+}
+
+enum ProjectStatus {
+  ORCAMENTO
+  EM_IMPRESSAO
+  CONCLUIDO
+  CANCELADO
+  FALHA
+  PAUSADO
+}
+
+enum NotificationType {
+  PROJECT_STATUS
+  LOW_STOCK
+  PAYMENT_DUE
+  PAYMENT_RECEIVED
+  PLAN_UPGRADE
+  SYSTEM
+  PRINTER_ALERT
+}
