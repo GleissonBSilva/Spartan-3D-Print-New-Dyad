@@ -115,7 +115,7 @@ export const Calculadora3D: React.FC = () => {
     const safeDesconto = descontoAtacado === '' ? 0 : Number(descontoAtacado) || 0;
     const safeTempoDecimal = parseTimeStringToDecimal(tempoHoras);
 
-    // 1. Calcula os custos unitários base
+    // 1. Calcula o custo de 1 UNIDADE padrão
     const unitBaseResult = PricingService.calculateProjectPricing({
       materials,
       printTimeHours: safeTempoDecimal,
@@ -128,32 +128,33 @@ export const Calculadora3D: React.FC = () => {
       profitMarginPercent: margemLucroPorcento,
     });
 
-    // 2. Custos que escalam com a quantidade de peças impressas no lote
+    // 2. Aplica multiplicador do Lote corretamente aos custos operacionais de fabricação
     const lotMaterialsCost = unitBaseResult.materialsWithFailureCost * safeLote;
     const lotEnergyCost = unitBaseResult.energyCost * safeLote;
+    const lotDepreciationCost = unitBaseResult.depreciationCost * safeLote;
+    const lotLaborCost = safeMaoDeObra * safeLote;
     const lotWeight = unitBaseResult.totalWeightGrams * safeLote;
-
-    // 3. Depreciação e Mão de Obra baseadas no tempo total da fornada (não multiplicadas pelo lote)
-    const lotDepreciationCost = unitBaseResult.depreciationCost; 
-    const lotLaborCost = safeMaoDeObra;
 
     const lotCostFabrication = lotMaterialsCost + lotEnergyCost + lotDepreciationCost + lotLaborCost;
     
-    // 4. Modo de Venda (Atacado x Varejo) sobre o preço sugerido unitário
-    let unitSuggestedPrice = unitBaseResult.suggestedPrice;
-    if (modoVenda === 'atacado') {
-      unitSuggestedPrice = unitSuggestedPrice * (1 - (safeDesconto / 100));
-    }
-    const totalBatchSuggestedPrice = unitSuggestedPrice * safeLote;
-
-    // 5. Custos extras variáveis como valor único fixo por lote
+    // Custos extras variáveis mantidos exatamente como estavam (embalagem e brinde somados ao custo total)
     const extraVariableCosts = safeEmbalagem + safeBrinde;
-    
     const finalLotCost = lotCostFabrication + extraVariableCosts;
-    const finalLotPrice = totalBatchSuggestedPrice + extraVariableCosts + safeFrete;
-    const finalLotProfit = finalLotPrice - (finalLotCost + safeFrete);
 
-    // 6. Retorna o objeto atualizado
+    // 3. APLICAÇÃO EXATA: Preço Final = Custo Total de Fabricação * (1 + margem/100) + Frete
+    let totalBatchSuggestedPrice = finalLotCost * (1 + (Number(margemLucroPorcento) || 0) / 100);
+
+    // Verifica Modo de Venda (Atacado x Varejo) sobre o preço sugerido do lote
+    if (modoVenda === 'atacado') {
+      totalBatchSuggestedPrice = totalBatchSuggestedPrice * (1 - (safeDesconto / 100));
+    }
+
+    const finalLotPrice = totalBatchSuggestedPrice + safeFrete;
+    const finalLotProfit = finalLotPrice - finalLotCost - safeFrete;
+
+    const realMargin = finalLotPrice > 0 ? (finalLotProfit / finalLotPrice) * 100 : 0;
+
+    // 4. Retorna o objeto corrigido para alimentar o PricingSummaryCard
     return {
       ...unitBaseResult,
       totalWeightGrams: lotWeight,
@@ -161,10 +162,10 @@ export const Calculadora3D: React.FC = () => {
       energyCost: lotEnergyCost,
       depreciationCost: lotDepreciationCost,
       laborCost: lotLaborCost,
-      totalProductionCost: finalLotCost,
-      suggestedPrice: finalLotPrice,
-      estimatedProfit: finalLotProfit,
-      marginRealPercent: finalLotCost > 0 ? (finalLotProfit / finalLotCost) * 100 : 0,
+      totalProductionCost: Number(finalLotCost.toFixed(2)),
+      suggestedPrice: Number(finalLotPrice.toFixed(2)),
+      estimatedProfit: Number(finalLotProfit.toFixed(2)),
+      marginRealPercent: Number(realMargin.toFixed(2)),
       valorFrete: safeFrete
     };
   }, [
@@ -290,7 +291,7 @@ export const Calculadora3D: React.FC = () => {
     toast.success('Parâmetros de G-Code integrados à calculadora multimaterial!');
   };
 
-  // Salvar Projeto
+  // Salvar Projeto corrigido (Atualiza se for recalculateProject, caso contrário cria um novo orçamento)
   const handleSalvarProjeto = async (status: 'orcamento' | 'em_impressao') => {
     if (!nomePeca.trim()) {
       toast.error('Informe o nome da peça/projeto.');
