@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Sparkles, Bot, Thermometer, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const SpartanAiAssistant: React.FC = () => {
   const [pergunta, setPergunta] = useState('');
@@ -129,9 +131,35 @@ export const SpartanAiAssistant: React.FC = () => {
                   <Copy className="w-3.5 h-3.5 mr-1" /> Copiar
                 </Button>
               </div>
-              <pre className="text-xs text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
-                {resposta}
-              </pre>
+
+              {/* Renderização rica em Markdown com suporte customizado a imagens e tabelas */}
+              <div className="text-xs text-slate-200 font-sans leading-relaxed prose prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    img: ({ node, ...props }) => (
+                      <img 
+                        {...props} 
+                        className="rounded-lg max-h-64 object-cover my-3 border border-slate-700 shadow-md" 
+                        alt={props.alt || 'Imagem de diagnóstico 3D'} 
+                      />
+                    ),
+                    table: ({ node, ...props }) => (
+                      <div className="overflow-x-auto my-4">
+                        <table className="min-w-full divide-y divide-slate-700 border border-slate-800 text-xs" {...props} />
+                      </div>
+                    ),
+                    th: ({ node, ...props }) => (
+                      <th className="px-3 py-2 bg-slate-900 text-left font-semibold text-slate-300 border-b border-slate-800" {...props} />
+                    ),
+                    td: ({ node, ...props }) => (
+                      <td className="px-3 py-2 border-b border-slate-800 text-slate-300" {...props} />
+                    )
+                  }}
+                >
+                  {resposta}
+                </ReactMarkdown>
+              </div>
             </div>
           )}
         </CardContent>
