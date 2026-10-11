@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Calculator, FileCode, FileText, TrendingUp } from 'lucide-react';
+import { Calculator, FileCode, FileText, TrendingUp, Clock3, ShoppingCart, Box, Package, Percent, Gift, Truck } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { ProjectMaterial, ProjetoImpressao3D } from '@/types/saas';
 import { PricingService, PricingCalculationResult } from '@/services/pricingService';
@@ -18,6 +18,41 @@ import { toast } from 'sonner';
 import { uploadModelFile } from '@/services/fileService';
 import { useAuth } from '@/context/AuthContext';
 
+// Função para converter formato HHMM ou string/número para horas decimais reais
+const parseTimeStringToDecimal = (val: string | number): number => {
+  if (typeof val === 'number') {
+    const hours = Math.floor(val);
+    const fractionalPart = Number((val - hours).toFixed(2));
+    const minutes = Math.round(fractionalPart * 100);
+    return hours + (minutes / 60);
+  }
+  
+  if (!val) return 0;
+  
+  const clean = String(val).replace(',', '.');
+  const parts = clean.split('.');
+  
+  if (parts.length > 1) {
+    const hours = parseInt(parts[0], 10) || 0;
+    const minutesStr = (parts[1] + '0').slice(0, 2); 
+    const minutes = parseInt(minutesStr, 10) || 0;
+    return hours + (minutes / 60);
+  }
+  
+  const num = Number(clean);
+  return isNaN(num) ? 0 : num;
+};
+
+// Conversão correta de horas decimais para formato legível (ex: 18 = 18h00m00s, 1.5 = 1h30m00s)
+const formatHours = (decimalHours: number) => {
+  const safeValue = Math.max(0, decimalHours);
+  const hours = Math.floor(safeValue);
+  const minutes = Math.round((safeValue - hours) * 60);
+  const seconds = 0;
+
+  return `${hours}h${String(minutes).padStart(2, '0')}m${String(seconds).padStart(2, '0')}s`;
+};
+
 export const Calculadora3D: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -29,16 +64,24 @@ export const Calculadora3D: React.FC = () => {
 
   // Dados Gerais do Projeto
   const [nomePeca, setNomePeca] = useState(sourceProject?.nomePeca || '');
-  const [clienteNome, setClienteNome] = useState(recalculateProject ? recalculateProject.clienteNome : copyProject ? '' : '');
-  const [tempoHoras, setTempoHoras] = useState(sourceProject?.tempoEstimadoHoras || 0);
+  const [clienteNome, setClienteNome] = useState(recalculateProject ? recalculateProject.clienteNome : '');
+  const [tempoHoras, setTempoHoras] = useState<number | string>(sourceProject?.tempoEstimadoHoras || 0);
   const [selectedImpressoraId, setSelectedImpressoraId] = useState(sourceProject?.impressoraId || impressoras[0]?.id || '');
   const [observacoes] = useState(sourceProject?.observacoes || '');
+
+  // Escala, Comercial e Extras (Com suporte a string para permitir apagar livremente)
+  const [quantidadeLote, setQuantidadeLote] = useState<number | string>((sourceProject as any)?.quantidadeLote ?? 1);
+  const [modoVenda, setModoVenda] = useState<string>((sourceProject as any)?.modoVenda ?? 'varejo');
+  const [descontoAtacado, setDescontoAtacado] = useState<number | string>((sourceProject as any)?.descontoAtacado ?? 13);
+  const [custoEmbalagem, setCustoEmbalagem] = useState<number | string>((sourceProject as any)?.custoEmbalagem ?? 3.00);
+  const [custoBrinde, setCustoBrinde] = useState<number | string>((sourceProject as any)?.custoBrinde ?? 2.00);
+  const [valorFrete, setValorFrete] = useState<number | string>((sourceProject as any)?.valorFrete ?? 0.00);
 
   // Parâmetros Financeiros e Operacionais
   const [tarifaKwh, setTarifaKwh] = useState(0.85);
   const [depreciacaoHora, setDepreciacaoHora] = useState(0.50);
   const [taxaFalhaPorcento, setTaxaFalhaPorcento] = useState(10);
-  const [custoMaoDeObra, setCustoMaoDeObra] = useState(sourceProject?.custoMaoDeObra ?? 15.0);
+  const [custoMaoDeObra, setCustoMaoDeObra] = useState<number | string>(sourceProject?.custoMaoDeObra ?? 15.0);
   const [outrosCustos] = useState(sourceProject?.outrosCustos ?? 0.0);
   const [margemLucroPorcento, setMargemLucroPorcento] = useState(sourceProject?.margemLucroPercentual ?? 140);
 
@@ -57,57 +100,97 @@ export const Calculadora3D: React.FC = () => {
     if (materials.length || !filamentos.length) return;
     const filament = filamentos[0];
     const costPerGram = filament.precoKg / 1000;
-    setMaterials([{ id: crypto.randomUUID(), materialId: filament.id, materialName: `${filament.tipo} - ${filament.cor}`, color: filament.cor, colorHex: filament.corHex, filamentType: filament.tipo, weightGrams: 1, costPerGram, totalCost: Number(costPerGram.toFixed(2)) }]);
+    setMaterials([{ id: crypto.randomUUID(), materialId: filament.id, materialName: `${filament.tipo} - ${filament.cor}`, color: filament.cor, colorHex: filament.colorHex, filamentType: filament.tipo, weightGrams: 1, costPerGram, totalCost: Number(costPerGram.toFixed(2)) }]);
   }, [filamentos, materials.length]);
+  
   const impressoraAtual = impressoras.find(i => i.id === selectedImpressoraId) || impressoras[0];
 
-  // Cálculo de Preço via PricingService
+  // Cálculo de Preço Avançado Corrigido
   const calculationResult: PricingCalculationResult = useMemo(() => {
-    return PricingService.calculateProjectPricing({
+    const safeLote = quantidadeLote === '' ? 1 : Number(quantidadeLote) || 1;
+    const safeEmbalagem = custoEmbalagem === '' ? 0 : Number(custoEmbalagem) || 0;
+    const safeBrinde = custoBrinde === '' ? 0 : Number(custoBrinde) || 0;
+    const safeFrete = valorFrete === '' ? 0 : Number(valorFrete) || 0;
+    const safeMaoDeObra = custoMaoDeObra === '' ? 0 : Number(custoMaoDeObra) || 0;
+    const safeDesconto = descontoAtacado === '' ? 0 : Number(descontoAtacado) || 0;
+    const safeTempoDecimal = parseTimeStringToDecimal(tempoHoras);
+
+    // 1. Calcula o custo de 1 UNIDADE padrão
+    const unitBaseResult = PricingService.calculateProjectPricing({
       materials,
-      printTimeHours: tempoHoras,
+      printTimeHours: safeTempoDecimal,
       printerPowerWatts: impressoraAtual?.potenciaWatts || 350,
       kwhEnergyRate: tarifaKwh,
       depreciationHourlyRate: depreciacaoHora,
       failureRatePercent: taxaFalhaPorcento,
-      laborCost: custoMaoDeObra,
+      laborCost: safeMaoDeObra,
       otherCosts: outrosCustos,
       profitMarginPercent: margemLucroPorcento,
     });
+
+    // 2. Aplica multiplicador do Lote corretamente aos custos operacionais de fabricação
+    const lotMaterialsCost = unitBaseResult.materialsWithFailureCost * safeLote;
+    const lotEnergyCost = unitBaseResult.energyCost * safeLote;
+    const lotDepreciationCost = unitBaseResult.depreciationCost * safeLote;
+    const lotLaborCost = safeMaoDeObra * safeLote;
+    const lotWeight = unitBaseResult.totalWeightGrams * safeLote;
+
+    const lotCostFabrication = lotMaterialsCost + lotEnergyCost + lotDepreciationCost + lotLaborCost;
+    
+    // Custos extras variáveis mantidos exatamente como estavam (embalagem e brinde somados ao custo total)
+    const extraVariableCosts = safeEmbalagem + safeBrinde;
+    const finalLotCost = lotCostFabrication + extraVariableCosts;
+
+    // 3. APLICAÇÃO EXATA: Preço Final = Custo Total de Fabricação * (1 + margem/100) + Frete
+    let totalBatchSuggestedPrice = finalLotCost * (1 + (Number(margemLucroPorcento) || 0) / 100);
+
+    // Verifica Modo de Venda (Atacado x Varejo) sobre o preço sugerido do lote
+    if (modoVenda === 'atacado') {
+      totalBatchSuggestedPrice = totalBatchSuggestedPrice * (1 - (safeDesconto / 100));
+    }
+
+    const finalLotPrice = totalBatchSuggestedPrice + safeFrete;
+    const finalLotProfit = finalLotPrice - finalLotCost - safeFrete;
+
+    const realMargin = finalLotPrice > 0 ? (finalLotProfit / finalLotPrice) * 100 : 0;
+
+    // 4. Retorna o objeto corrigido para alimentar o PricingSummaryCard
+    return {
+      ...unitBaseResult,
+      totalWeightGrams: lotWeight,
+      materialsWithFailureCost: lotMaterialsCost,
+      energyCost: lotEnergyCost,
+      depreciationCost: lotDepreciationCost,
+      laborCost: lotLaborCost,
+      totalProductionCost: Number(finalLotCost.toFixed(2)),
+      suggestedPrice: Number(finalLotPrice.toFixed(2)),
+      estimatedProfit: Number(finalLotProfit.toFixed(2)),
+      marginRealPercent: Number(realMargin.toFixed(2)),
+      valorFrete: safeFrete
+    };
   }, [
-    materials,
-    tempoHoras,
-    impressoraAtual,
-    tarifaKwh,
-    depreciacaoHora,
-    taxaFalhaPorcento,
-    custoMaoDeObra,
-    outrosCustos,
-    margemLucroPorcento,
+    materials, tempoHoras, impressoraAtual, tarifaKwh, depreciacaoHora, 
+    taxaFalhaPorcento, custoMaoDeObra, outrosCustos, margemLucroPorcento,
+    quantidadeLote, modoVenda, descontoAtacado, custoEmbalagem, custoBrinde, valorFrete
   ]);
 
   // Simulação de Variações de 1 a 4 Cores
   const variations = useMemo(() => {
+    const safeMaoDeObra = custoMaoDeObra === '' ? 0 : Number(custoMaoDeObra) || 0;
+    const safeTempoDecimal = parseTimeStringToDecimal(tempoHoras);
     return PricingService.generateMaterialVariations(materials, {
-      printTimeHours: tempoHoras,
+      printTimeHours: safeTempoDecimal,
       printerPowerWatts: impressoraAtual?.potenciaWatts || 350,
       kwhEnergyRate: tarifaKwh,
       depreciationHourlyRate: depreciacaoHora,
       failureRatePercent: taxaFalhaPorcento,
-      laborCost: custoMaoDeObra,
+      laborCost: safeMaoDeObra,
       otherCosts: outrosCustos,
       profitMarginPercent: margemLucroPorcento,
     });
   }, [
-    materials,
-    tempoHoras,
-    impressoraAtual,
-    tarifaKwh,
-    depreciacaoHora,
-    taxaFalhaPorcento,
-    custoMaoDeObra,
-    outrosCustos,
-    margemLucroPorcento,
+    materials, tempoHoras, impressoraAtual, tarifaKwh, depreciacaoHora, 
+    taxaFalhaPorcento, custoMaoDeObra, outrosCustos, margemLucroPorcento
   ]);
 
   // Adicionar novo material (Máx 4)
@@ -127,7 +210,7 @@ export const Calculadora3D: React.FC = () => {
       materialId: availableFil?.id,
       materialName: `${availableFil?.tipo || 'PLA'} - ${availableFil?.cor || 'Cor'}`,
       color: availableFil?.cor || 'Padrão',
-      colorHex: availableFil?.corHex || '#6366f1',
+      colorHex: availableFil?.colorHex || '#6366f1',
       filamentType: availableFil?.tipo || 'PLA',
       weightGrams: 30,
       costPerGram: (availableFil?.precoKg || 100) / 1000,
@@ -161,18 +244,18 @@ export const Calculadora3D: React.FC = () => {
                 materialId: found.id,
                 materialName: `${found.tipo} - ${found.cor}`,
                 color: found.cor,
-                colorHex: found.corHex,
+                colorHex: found.colorHex,
                 filamentType: found.tipo,
                 costPerGram: costPerG,
-                totalCost: Number((m.weightGrams * costPerG).toFixed(2)),
+                totalCost: Number((Number(m.weightGrams || 0) * costPerG).toFixed(2)),
               };
             }
           } else if (field === 'weightGrams') {
-            const w = Math.max(1, Number(value) || 0);
+            const w = value === '' ? '' : Math.max(0, Number(value) || 0);
             return {
               ...m,
               weightGrams: w,
-              totalCost: Number((w * m.costPerGram).toFixed(2)),
+              totalCost: Number(((typeof w === 'number' ? w : 0) * m.costPerGram).toFixed(2)),
             };
           }
         }
@@ -208,7 +291,7 @@ export const Calculadora3D: React.FC = () => {
     toast.success('Parâmetros de G-Code integrados à calculadora multimaterial!');
   };
 
-  // Salvar Projeto
+  // Salvar Projeto corrigido (Atualiza se for recalculateProject, caso contrário cria um novo orçamento)
   const handleSalvarProjeto = async (status: 'orcamento' | 'em_impressao') => {
     if (!nomePeca.trim()) {
       toast.error('Informe o nome da peça/projeto.');
@@ -221,44 +304,55 @@ export const Calculadora3D: React.FC = () => {
 
     const matSummary = materials.map(m => `${m.filamentType} ${m.color} (${m.weightGrams}g)`).join(' + ');
     setSavingProject(true);
+    
     try {
       if (imageFile && !user?.companyId) throw new Error('Sua conta não está vinculada a uma empresa.');
       const imagePath = imageFile && user?.companyId ? await uploadModelFile(imageFile, user.companyId) : undefined;
+      
       const projectData = {
-      nomePeca,
-      clienteNome,
-      impressoraId: impressoraAtual?.id,
-      impressoraNome: impressoraAtual?.nome,
-      pesoEstimadoG: calculationResult.totalWeightGrams,
-      tempoEstimadoHoras: tempoHoras,
-      materials,
-      filamentoUtilizado: matSummary,
-      custoMaterial: calculationResult.materialsWithFailureCost,
-      custoEnergia: calculationResult.energyCost,
-      custoDepreciacao: calculationResult.depreciationCost,
-      custoMaoDeObra,
-      outrosCustos,
-      custoTotal: calculationResult.totalProductionCost,
-      margemLucroPercentual: margemLucroPorcento,
-      precoCobrado: calculationResult.suggestedPrice,
-      lucroLiquido: calculationResult.estimatedProfit,
-      status: recalculateProject?.status || status,
-      observacoes,
-      arquivoPath: uploadedFilePath || recalculateProject?.arquivoPath,
-      imagemPath: imagePath || recalculateProject?.imagemPath,
+        nomePeca,
+        clienteNome,
+        impressoraId: impressoraAtual?.id,
+        impressoraNome: impressoraAtual?.nome,
+        pesoEstimadoG: calculationResult.totalWeightGrams,
+        tempoEstimadoHoras: parseTimeStringToDecimal(tempoHoras),
+        materials,
+        filamentoUtilizado: matSummary,
+        custoMaterial: calculationResult.materialsWithFailureCost,
+        custoEnergia: calculationResult.energyCost,
+        custoDepreciacao: calculationResult.depreciationCost,
+        custoMaoDeObra: custoMaoDeObra === '' ? 0 : Number(custoMaoDeObra) || 0,
+        outrosCustos,
+        custoTotal: calculationResult.totalProductionCost,
+        margemLucroPercentual: margemLucroPorcento,
+        precoCobrado: calculationResult.suggestedPrice,
+        lucroLiquido: calculationResult.estimatedProfit,
+        status: recalculateProject ? status : 'orcamento',
+        observacoes,
+        arquivoPath: uploadedFilePath || sourceProject?.arquivoPath,
+        imagemPath: imagePath || sourceProject?.imagemPath,
+        quantidadeLote: quantidadeLote === '' ? 1 : Number(quantidadeLote) || 1,
+        modoVenda,
+        descontoAtacado: descontoAtacado === '' ? 0 : Number(descontoAtacado) || 0,
+        custoEmbalagem: custoEmbalagem === '' ? 0 : Number(custoEmbalagem) || 0,
+        custoBrinde: custoBrinde === '' ? 0 : Number(custoBrinde) || 0,
+        valorFrete: valorFrete === '' ? 0 : Number(valorFrete) || 0
       };
-      const saved = recalculateProject
-        ? await updateProjeto(recalculateProject.id, projectData)
-        : addProjeto(projectData);
-      if (saved) {
+
+      let success = false;
+      if (recalculateProject) {
+        success = await updateProjeto(recalculateProject.id, projectData);
+      } else {
+        success = await addProjeto(projectData);
+      }
+        
+      if (success) {
         setImageFile(null);
-        if (recalculateProject) {
-          toast.success('Custos e preço do projeto foram atualizados.');
-          navigate('/cliente/projetos', { replace: true, state: null });
-        }
+        toast.success(recalculateProject ? 'Projeto atualizado com sucesso!' : 'Novo orçamento gerado com sucesso a partir do modelo!');
+        navigate('/cliente/projetos', { replace: true, state: null });
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível anexar a imagem ao projeto.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.');
     } finally {
       setSavingProject(false);
     }
@@ -269,8 +363,8 @@ export const Calculadora3D: React.FC = () => {
       {/* Top Selector Navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex gap-2">
-          <Button
-            size="sm"
+          <Button 
+            size="sm" 
             onClick={() => setActiveTab('calculadora')}
             className={`text-xs rounded-xl h-9 px-4 font-bold ${
               activeTab === 'calculadora'
@@ -278,11 +372,11 @@ export const Calculadora3D: React.FC = () => {
                 : 'bg-slate-900 text-slate-400 hover:text-white'
             }`}
           >
-            <Calculator className="w-4 h-4 mr-1.5" /> Calculadora & Multimaterial (Até 4 Cores)
+            <Calculator className="w-4 h-4 mr-1.5"/> Calculadora & Multimaterial (Até 4 Cores)
           </Button>
 
-          <Button
-            size="sm"
+          <Button 
+            size="sm" 
             onClick={() => setActiveTab('variacoes')}
             className={`text-xs rounded-xl h-9 px-4 font-bold ${
               activeTab === 'variacoes'
@@ -290,28 +384,28 @@ export const Calculadora3D: React.FC = () => {
                 : 'bg-slate-900 text-slate-400 hover:text-white'
             }`}
           >
-            <TrendingUp className="w-4 h-4 mr-1.5 text-amber-400" /> Simular Variações (1 a 4 Cores)
+            <TrendingUp className="w-4 h-4 mr-1.5 text-amber-400"/> Simular Variações (1 a 4 Cores)
           </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
+          <Button 
+            size="sm" 
+            type="button" 
             onClick={() => setGcodeModal(true)}
             className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs rounded-xl h-9"
           >
-            <FileCode className="w-3.5 h-3.5 mr-1 text-cyan-400" />
+            <FileCode className="w-3.5 h-3.5 mr-1 text-cyan-400"/>
             Importar G-Code / .3MF
           </Button>
-          <Button
-            type="button"
-            size="sm"
+          <Button 
+            size="sm" 
+            type="button" 
             onClick={() => setPdfModal(true)}
             variant="outline"
             className="bg-slate-950 border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/30 text-xs rounded-xl h-9"
           >
-            <FileText className="w-3.5 h-3.5 mr-1" />
+            <FileText className="w-3.5 h-3.5 mr-1"/>
             Gerar Proposta PDF
           </Button>
         </div>
@@ -324,48 +418,180 @@ export const Calculadora3D: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Coluna Principal dos Formulários */}
           <div className="lg:col-span-2 space-y-6">
-            <PieceDetailsForm
-              nomePeca={nomePeca}
-              setNomePeca={setNomePeca}
-              clienteNome={clienteNome}
-              setClienteNome={setClienteNome}
-              selectedImpressoraId={selectedImpressoraId}
-              setSelectedImpressoraId={setSelectedImpressoraId}
-              tempoHoras={tempoHoras}
-              setTempoHoras={setTempoHoras}
-              impressoras={impressoras}
-              imageFile={imageFile}
-              setImageFile={setImageFile}
-            />
+            
+            {/* 1. DADOS DA PEÇA & CLIENTE */}
+            <div className="relative">
+              <PieceDetailsForm 
+                clienteNome={clienteNome} 
+                imageFile={imageFile} 
+                impressoras={impressoras} 
+                nomePeca={nomePeca} 
+                selectedImpressoraId={selectedImpressoraId} 
+                setClienteNome={setClienteNome} 
+                setImageFile={setImageFile} 
+                setNomePeca={setNomePeca} 
+                setSelectedImpressoraId={setSelectedImpressoraId} 
+                setTempoHoras={setTempoHoras} 
+                tempoHoras={tempoHoras}
+              />
+              {/* Exibição formatada do tempo atual selecionado para confirmação visual */}
+              {parseTimeStringToDecimal(tempoHoras) > 0 && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400 px-1">
+                  <Clock3 className="w-3.5 h-3.5 text-indigo-400"/>
+                  <span>Tempo formatado de impressão: <strong className="text-white">{formatHours(parseTimeStringToDecimal(tempoHoras))}</strong></span>
+                </div>
+              )}
+            </div>
 
-            <MultiMaterialSelector
-              materials={materials}
-              filamentos={filamentos}
-              onAddMaterial={handleAddMaterial}
-              onRemoveMaterial={handleRemoveMaterial}
+            {/* ========================================== */}
+            {/* 2. COMERCIAL, ESCALA & EXTRAS            */}
+            {/* ========================================== */}
+            <div className="bg-[hsla(222,47%,11%,0.95)] rounded-2xl p-5 border border-slate-800 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                  <ShoppingCart className="w-4 h-4 text-emerald-400"/> Comercial, Escala & Extras
+                </h3>
+                
+                {/* STATUS DO MODO DE VENDA */}
+                <div
+                  className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    modoVenda === 'atacado'
+                      ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
+                      : 'border-slate-700 bg-[rgb(210, 216, 226)] text-slate-400'
+                  }`}
+                >
+                  <ShoppingCart className="h-3 w-3" />
+                  {modoVenda === 'atacado' ? 'Venda em atacado' : 'Venda em varejo'}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Lote */}
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                    QUANTIDADE (LOTE)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={quantidadeLote} 
+                    onChange={(e) => setQuantidadeLote(e.target.value === '' ? '' : e.target.value)}
+                    className="bg-[rgb(8,11,19)] text-white rounded-xl border border-white p-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" 
+                  />
+                </div>
+
+                {/* Modo de Venda */}
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                    MODO DE VENDA
+                  </label>
+                  <select 
+                    value={modoVenda}
+                    onChange={(e) => setModoVenda(e.target.value)}
+                    className="bg-[rgb(8,11,19)] text-white rounded-xl border border-white p-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="varejo" className="bg-[rgb(19,22,34)] text-white">Varejo (Padrão)</option>
+                    <option value="atacado" className="bg-[rgb(19,22,34)] text-white">Atacado</option>
+                  </select>
+                </div>
+
+                {/* Desconto Atacado */}
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                    DESC. ATACADO (%)
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      value={descontoAtacado}
+                      onChange={(e) => setDescontoAtacado(e.target.value === '' ? '' : e.target.value)}
+                      disabled={modoVenda === 'varejo'}
+                      className={`bg-[rgb(8,11,19)] text-white rounded-xl border border-slate-200/90 p-2.5 text-sm w-full focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 ${modoVenda === 'varejo' ? 'opacity-100 cursor-not-allowed' : ''}`} 
+                    />
+                    <span className="absolute right-3.5 top-2.5 text-slate-400 text-sm">%</span>
+                  </div>
+                </div>
+
+                {/* Embalagem */}
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                    EMBALAGEM (R$)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="0.01" 
+                    value={custoEmbalagem}
+                    onChange={(e) => setCustoEmbalagem(e.target.value === '' ? '' : e.target.value)}
+                    className="bg-[rgb(8,11,19)] text-white rounded-xl border border-white p-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" 
+                  />
+                </div>
+
+                {/* Brinde */}
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                    CARTÃO/BRINDE (R$)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="0.01"
+                    value={custoBrinde}
+                    onChange={(e) => setCustoBrinde(e.target.value === '' ? '' : e.target.value)}
+                    className="bg-[rgb(8,11,19)] text-white rounded-xl border border-white p-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" 
+                  />
+                </div>
+
+                {/* Frete */}
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                    FRETE (R$)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="0.01"
+                    value={valorFrete}
+                    onChange={(e) => setValorFrete(e.target.value === '' ? '' : e.target.value)}
+                    className="bg-[rgb(8,11,19)] text-white rounded-xl border border-white p-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" 
+                  />
+                </div>
+              </div>
+            </div>
+            {/* ========================================== */}
+
+            {/* 3. MATERIAIS & CORES */}
+            <MultiMaterialSelector 
+              filamentos={filamentos} 
+              materials={materials} 
+              onAddMaterial={handleAddMaterial} 
+              onRemoveMaterial={handleRemoveMaterial} 
               onUpdateMaterial={handleUpdateMaterial}
             />
 
-            <ProductionCostParams
-              tarifaKwh={tarifaKwh}
-              setTarifaKwh={setTarifaKwh}
-              depreciacaoHora={depreciacaoHora}
-              setDepreciacaoHora={setDepreciacaoHora}
+            {/* 4. CUSTOS OPERACIONAIS */}
+            <ProductionCostParams 
+              custoMaoDeObra={custoMaoDeObra} 
+              depreciacaoHora={depreciacaoHora} 
+              margemLucroPorcento={margemLucroPorcento} 
+              marginRealPercent={calculationResult.marginRealPercent} 
+              setCustoMaoDeObra={setCustoMaoDeObra} 
+              setDepreciacaoHora={setDepreciacaoHora} 
+              setMargemLucroPorcento={setMargemLucroPorcento} 
+              setTarifaKwh={setTarifaKwh} 
+              setTaxaFalhaPorcento={setTaxaFalhaPorcento} 
+              tarifaKwh={tarifaKwh} 
               taxaFalhaPorcento={taxaFalhaPorcento}
-              setTaxaFalhaPorcento={setTaxaFalhaPorcento}
-              custoMaoDeObra={custoMaoDeObra}
-              setCustoMaoDeObra={setCustoMaoDeObra}
-              margemLucroPorcento={margemLucroPorcento}
-              setMargemLucroPorcento={setMargemLucroPorcento}
-              marginRealPercent={calculationResult.marginRealPercent}
             />
           </div>
 
           {/* Coluna Lateral: Resumo de Custos e Ações */}
           <div>
-            <PricingSummaryCard
-              nomePeca={nomePeca}
-              calculationResult={calculationResult}
+            <PricingSummaryCard 
+              calculationResult={calculationResult} 
+              nomePeca={nomePeca} 
               taxaFalhaPorcento={taxaFalhaPorcento}
               onSalvarOrcamento={() => handleSalvarProjeto('orcamento')}
               onAprovarProducao={() => handleSalvarProjeto('em_impressao')}
@@ -379,8 +605,8 @@ export const Calculadora3D: React.FC = () => {
 
       {/* ABA: SIMULADOR DE VARIAÇÕES (1 A 4 CORES) */}
       {activeTab === 'variacoes' && (
-        <VariationsGrid
-          nomePeca={nomePeca}
+        <VariationsGrid 
+          nomePeca={nomePeca} 
           variations={variations}
           onSelectVariation={(selectedMats, count) => {
             setMaterials(selectedMats);
@@ -391,14 +617,14 @@ export const Calculadora3D: React.FC = () => {
       )}
 
       {/* Modais Integrados */}
-      <GcodeAnalyzerModal
-        isOpen={gcodeModal}
+      <GcodeAnalyzerModal 
+        isOpen={gcodeModal} 
         onClose={() => setGcodeModal(false)}
         onApplyData={handleApplyGcodeData}
       />
 
-      <OrcamentoPdfModal
-        isOpen={pdfModal}
+      <OrcamentoPdfModal 
+        isOpen={pdfModal} 
         onClose={() => setPdfModal(false)}
         projeto={{
           nomePeca,
@@ -406,7 +632,7 @@ export const Calculadora3D: React.FC = () => {
           materials,
           filamentoUtilizado: materials.map(m => `${m.filamentType} ${m.color} (${m.weightGrams}g)`).join(' + '),
           pesoEstimadoG: calculationResult.totalWeightGrams,
-          tempoEstimadoHoras: tempoHoras,
+          tempoEstimadoHoras: parseTimeStringToDecimal(tempoHoras),
           precoCobrado: calculationResult.suggestedPrice,
         }}
       />

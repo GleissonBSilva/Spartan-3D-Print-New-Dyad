@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Bot, Thermometer, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 
 export const SpartanAiAssistant: React.FC = () => {
   const [pergunta, setPergunta] = useState('');
@@ -27,25 +26,40 @@ export const SpartanAiAssistant: React.FC = () => {
     
     setCarregando(true);
     try {
-      if (!supabase) {
-        throw new Error("Supabase não inicializado.");
+      const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+      if (!apiKey) {
+        throw new Error("A chave VITE_GROQ_API_KEY não está configurada nas variáveis de ambiente.");
       }
 
-      // Chamada direta à Edge Function 'ai-assistant'
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { prompt: pergunta.trim() }
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama3-70b-8192",
+          messages: [
+            { 
+              role: "system", 
+              content: "És o assistente especialista do Spartan 3D, um software de gestão de farms de impressão 3D, focado em parâmetros de fatiamento, bicos, resinas, custos, desperdício e resolução de problemas." 
+            },
+            { role: "user", content: pergunta.trim() }
+          ]
+        })
       });
 
-      if (error) {
-        throw new Error(error.message || "Erro ao comunicar com a Edge Function.");
+      if (!res.ok) {
+        throw new Error("Erro ao comunicar com a API do Groq Cloud.");
       }
 
-      const botReply = data?.answer || data?.reply || data?.choices?.[0]?.message?.content || "Sem resposta gerada.";
+      const data = await res.json();
+      const botReply = data.choices[0]?.message?.content || "Sem resposta gerada.";
+      
       setResposta(botReply);
-      toast.success('Diagnóstico gerado com sucesso!');
+      toast.success('Resposta recebida do assistente.');
     } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : 'Falha ao consultar o assistente.');
+      toast.error(error instanceof Error ? error.message : 'Falha ao consultar a IA do Groq.');
     } finally { 
       setCarregando(false); 
     }
@@ -70,7 +84,7 @@ export const SpartanAiAssistant: React.FC = () => {
               </div>
             </div>
             <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
-              IA via Supabase & Groq
+              IA via Groq Cloud
             </Badge>
           </div>
         </CardHeader>

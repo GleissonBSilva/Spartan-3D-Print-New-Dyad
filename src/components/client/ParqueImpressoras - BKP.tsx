@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, CirclePower, Clock3, Cpu, History, Pause, Play, Plus, Wrench, X, DollarSign, Trash2, Edit2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, CirclePower, Clock3, Cpu, History, Pause, Play, Plus, Wrench, X } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { Impressora3D } from '@/types/saas';
 import { toast } from 'sonner';
@@ -23,14 +23,24 @@ const STATUS: Record<Impressora3D['status'], { label: string; badge: string; dot
 
 const parseAndSanitizeEstimatedSeconds = (inputTime: number | string): number => {
   let totalSeconds = 0;
+
   if (typeof inputTime === 'string' && inputTime.includes(':')) {
     const parts = inputTime.split(':').map(Number);
     totalSeconds = (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
   } else {
     const numericValue = Number(inputTime) || 0;
-    totalSeconds = numericValue > 1000 && !String(inputTime).includes('.') ? numericValue : Math.round(numericValue * 3600);
+    if (numericValue > 1000 && !String(inputTime).includes('.')) {
+      totalSeconds = numericValue;
+    } else {
+      totalSeconds = Math.round(numericValue * 3600);
+    }
   }
-  return totalSeconds > 720 * 3600 || isNaN(totalSeconds) || totalSeconds < 0 ? 18 * 3600 : totalSeconds;
+
+  if (totalSeconds > 720 * 3600 || isNaN(totalSeconds) || totalSeconds < 0) {
+    totalSeconds = 18 * 3600; 
+  }
+
+  return totalSeconds;
 };
 
 const formatSecondsToTime = (totalSeconds: number) => {
@@ -38,46 +48,17 @@ const formatSecondsToTime = (totalSeconds: number) => {
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const seconds = safeSeconds % 60;
+
   return `${hours}h${String(minutes).padStart(2, '0')}m${String(seconds).padStart(2, '0')}s`;
 };
 
-const formatHours = (inputTime: number | string) => formatSecondsToTime(parseAndSanitizeEstimatedSeconds(inputTime));
+const formatHours = (inputTime: number | string) => {
+  const totalSeconds = parseAndSanitizeEstimatedSeconds(inputTime);
+  return formatSecondsToTime(totalSeconds);
+};
 
 export const ParqueImpressoras: React.FC = () => {
-  const { impressoras: rawImpressoras, projetos, historicoImpressoras, addImpressora, updateImpressora, deleteImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance } = useSaaSData();
-  
-  // Estado local para exclusão manual garantida e metadados customizados
-  const [deletedPrinterIds, setDeletedPrinterIds] = useState<string[]>([]);
-  const [customInvestments, setCustomInvestments] = useState<Record<string, { custoInvestimento: number; vidaUtilHoras: number; depreciacaoHora: number }>>({});
-
-  useEffect(() => {
-    try {
-      const savedDel = localStorage.getItem('ph3d_deleted_printers');
-      if (savedDel) setDeletedPrinterIds(JSON.parse(savedDel));
-
-      const savedInv = localStorage.getItem('ph3d_printer_investments_v2');
-      if (savedInv) setCustomInvestments(JSON.parse(savedInv));
-    } catch (e) {}
-  }, []);
-
-  // Filtra as impressoras removendo as que foram marcadas como deletadas localmente
-  const impressoras = useMemo(() => {
-    return rawImpressoras
-      .filter(p => !deletedPrinterIds.includes(p.id))
-      .map(p => {
-        const custom = customInvestments[p.id];
-        if (custom) {
-          return {
-            ...p,
-            custoInvestimento: custom.custoInvestimento,
-            vidaUtilHoras: custom.vidaUtilHoras,
-            depreciacaoHora: custom.depreciacaoHora
-          };
-        }
-        return p;
-      });
-  }, [rawImpressoras, deletedPrinterIds, customInvestments]);
-
+  const { impressoras, projetos, historicoImpressoras, addImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance } = useSaaSData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [maintenancePrinter, setMaintenancePrinter] = useState<string | null>(null);
   const [maintenanceTasks, setMaintenanceTasks] = useState<string[]>([]);
@@ -85,14 +66,7 @@ export const ParqueImpressoras: React.FC = () => {
   const [savingMaintenance, setSavingMaintenance] = useState(false);
   const [progressDraft, setProgressDraft] = useState<Record<string, number>>({});
   
-  const [editingPrinterId, setEditingPrinterId] = useState<string | null>(null);
-  const [editNome, setEditNome] = useState('');
-  const [editModelo, setEditModelo] = useState('');
-  const [editPotencia, setEditPotencia] = useState<number | string>(350);
-  const [editBico, setEditBico] = useState<number | string>(0.4);
-  const [editPrecoCompra, setEditPrecoCompra] = useState<number | string>(5000);
-  const [editVidaUtil, setEditVidaUtil] = useState<number | string>(5000);
-
+  // Estado para controlar os segundos restantes de forma autónoma por impressora
   const [remainingSecondsMap, setRemainingSecondsMap] = useState<Record<string, number>>({});
 
   const [nome, setNome] = useState('');
@@ -100,13 +74,13 @@ export const ParqueImpressoras: React.FC = () => {
   const [potencia, setPotencia] = useState(350);
   const [bico, setBico] = useState(0.4);
   const [serviceInterval, setServiceInterval] = useState(100);
-  const [precoCompra, setPrecoCompra] = useState<number | string>(5000); 
-  const [vidaUtilHoras, setVidaUtilHoras] = useState<number | string>(5000); 
 
+  // Sincronizar e decrementar os segundos ativamente a cada segundo
   useEffect(() => {
     const printingPrinters = impressoras.filter(p => p.status === 'imprimindo');
     if (printingPrinters.length === 0) return;
 
+    // Inicializar os segundos restantes caso ainda não existam no estado local
     setRemainingSecondsMap(prev => {
       const next = { ...prev };
       let changed = false;
@@ -133,11 +107,13 @@ export const ParqueImpressoras: React.FC = () => {
           let secsChanged = false;
 
           printingPrinters.forEach(p => {
+            // Decrementar 1 segundo de forma estritamente sequencial
             const currentSecs = nextSecs[p.id];
             if (currentSecs !== undefined && currentSecs > 0) {
               nextSecs[p.id] = currentSecs - 1;
               secsChanged = true;
 
+              // Atualizar também o progresso proporcionalmente para manter a barra sincronizada
               const currentProject = projetos.find(proj => proj.id === p.projetoAtualId);
               const totalSecs = parseAndSanitizeEstimatedSeconds(currentProject?.tempoEstimadoHoras ?? 18);
               if (totalSecs > 0) {
@@ -168,109 +144,8 @@ export const ParqueImpressoras: React.FC = () => {
   const handleAdd = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!nome.trim() || potencia <= 0 || bico <= 0 || serviceInterval <= 0) return;
-    
-    const valorInvestimento = Number(precoCompra) || 0;
-    const horasVidaUtil = Number(vidaUtilHoras) || 5000;
-    const depreciacaoCalculada = horasVidaUtil > 0 ? Number((valorInvestimento / horasVidaUtil).toFixed(2)) : 0.50;
-
-    const saved = addImpressora({ 
-      nome: nome.trim(), 
-      modelo: modelo.trim() || 'Impressora 3D', 
-      tipo: 'FDM', 
-      status: 'disponivel', 
-      potenciaWatts: potencia, 
-      bicoMm: bico, 
-      horasUso: 0, 
-      horasDesdeManutencao: 0, 
-      intervaloManutencaoHoras: serviceInterval,
-      custoInvestimento: valorInvestimento,
-      vidaUtilHoras: horasVidaUtil,
-      depreciacaoHora: depreciacaoCalculada
-    } as any);
-
-    if (saved) { 
-      setNome(''); 
-      setModelo(''); 
-      setShowAddForm(false); 
-      toast.success(`Impressora cadastrada! Depreciação: R$ ${depreciacaoCalculada.toFixed(2)}/h`);
-    }
-  };
-
-  const handleOpenEdit = (printer: Impressora3D) => {
-    setEditingPrinterId(printer.id);
-    setEditNome(printer.nome || '');
-    setEditModelo(printer.modelo || '');
-    setEditPotencia(printer.potenciaWatts || 350);
-    setEditBico(printer.bicoMm || 0.4);
-    
-    const currentCustom = customInvestments[printer.id];
-    setEditPrecoCompra(currentCustom ? currentCustom.custoInvestimento : ((printer as any).custoInvestimento ?? 5000));
-    setEditVidaUtil(currentCustom ? currentCustom.vidaUtilHoras : ((printer as any).vidaUtilHoras ?? 5000));
-  };
-
-  const handleUpdate = (event: React.FormEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    
-    if (!editingPrinterId) return;
-
-    const valorInvestimento = parseFloat(String(editPrecoCompra)) || 0;
-    const horasVidaUtil = parseFloat(String(editVidaUtil)) || 5000;
-    const depreciacaoCalculada = horasVidaUtil > 0 ? Number((valorInvestimento / horasVidaUtil).toFixed(2)) : 0.50;
-
-    const printerToUpdate = impressoras.find(p => p.id === editingPrinterId);
-    if (!printerToUpdate) return;
-
-    const updatedCustoms = {
-      ...customInvestments,
-      [editingPrinterId]: {
-        custoInvestimento: valorInvestimento,
-        vidaUtilHoras: horasVidaUtil,
-        depreciacaoHora: depreciacaoCalculada
-      }
-    };
-
-    setCustomInvestments(updatedCustoms);
-    try {
-      localStorage.setItem('ph3d_printer_investments_v2', JSON.stringify(updatedCustoms));
-    } catch (e) {}
-
-    if (updateImpressora) {
-      updateImpressora(editingPrinterId, {
-        ...printerToUpdate,
-        nome: editNome.trim(),
-        modelo: editModelo.trim(),
-        potenciaWatts: Number(editPotencia) || 350,
-        bicoMm: Number(editBico) || 0.4,
-      } as any);
-    }
-
-    toast.success('Preço e vida útil salvos com sucesso!');
-    setEditingPrinterId(null);
-  };
-
-  const handleDelete = (id: string, nomeImpressora: string) => {
-    if (confirm(`Tem certeza que deseja excluir a impressora "${nomeImpressora}"?`)) {
-      // 1. Tenta apagar via contexto global se disponível
-      if (deleteImpressora) {
-        try { deleteImpressora(id); } catch (e) {}
-      }
-
-      // 2. Adiciona à lista de excluídos locais e remove dos investimentos
-      const newDeleted = [...deletedPrinterIds, id];
-      setDeletedPrinterIds(newDeleted);
-
-      const updatedCustoms = { ...customInvestments };
-      delete updatedCustoms[id];
-      setCustomInvestments(updatedCustoms);
-
-      try {
-        localStorage.setItem('ph3d_deleted_printers', JSON.stringify(newDeleted));
-        localStorage.setItem('ph3d_printer_investments_v2', JSON.stringify(updatedCustoms));
-      } catch (e) {}
-
-      toast.success('Impressora excluída com sucesso.');
-    }
+    const saved = addImpressora({ nome: nome.trim(), modelo: modelo.trim() || 'Impressora 3D', tipo: 'FDM', status: 'disponivel', potenciaWatts: potencia, bicoMm: bico, horasUso: 0, horasDesdeManutencao: 0, intervaloManutencaoHoras: serviceInterval });
+    if (saved) { setNome(''); setModelo(''); setShowAddForm(false); }
   };
 
   const submitMaintenance = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -297,22 +172,14 @@ export const ParqueImpressoras: React.FC = () => {
       <SummaryCard label="Manutenção" value={counts.maintenance} tone="orange" icon={Wrench} />
     </section>
 
-    {showAddForm && <Card className="rounded-2xl border-slate-800 bg-slate-900 p-5">
-      <h3 className="mb-4 font-bold text-white flex items-center gap-2"><DollarSign className="w-4 h-4 text-emerald-400"/> Cadastrar Impressora & Custo de Investimento</h3>
-      <form onSubmit={handleAdd} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Nome da impressora"><Input required maxLength={100} placeholder="Ex.: BambuLab A1 Combo" value={nome} onChange={event => setNome(event.target.value)} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <Field label="Fabricante / modelo"><Input maxLength={120} placeholder="Ex.: Bambu Lab A1" value={modelo} onChange={event => setModelo(event.target.value)} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <Field label="Potência (W)"><Input type="number" min="1" value={potencia} onChange={event => setPotencia(Number(event.target.value))} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <Field label="Bico (mm)"><Input type="number" min="0.1" step="0.1" value={bico} onChange={event => setBico(Number(event.target.value))} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <Field label="Preço de Investimento / Compra (R$)"><Input type="number" min="0" step="0.01" placeholder="Ex: 5000.00" value={precoCompra} onChange={event => setPrecoCompra(event.target.value)} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <Field label="Vida útil estimada (Horas de uso)"><Input type="number" min="100" step="100" placeholder="Ex: 5000" value={vidaUtilHoras} onChange={event => setVidaUtilHoras(event.target.value)} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <Field label="Manutenção a cada (h)"><Input type="number" min="1" step="1" value={serviceInterval} onChange={event => setServiceInterval(Number(event.target.value))} className="border-slate-700 bg-slate-950 text-white" /></Field>
-        <div className="flex items-end gap-2 lg:col-span-4 mt-2">
-          <Button type="submit" className="bg-indigo-600 text-white hover:bg-indigo-500">Salvar impressora com ROI</Button>
-          <Button type="button" variant="outline" onClick={() => setShowAddForm(false)} className="border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800 hover:text-white">Cancelar</Button>
-        </div>
-      </form>
-    </Card>}
+    {showAddForm && <Card className="rounded-2xl border-slate-800 bg-slate-900 p-5"><h3 className="mb-4 font-bold text-white">Cadastrar impressora</h3><form onSubmit={handleAdd} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <Field label="Nome da impressora"><Input required maxLength={100} placeholder="Ex.: BambuLab A1 Combo" value={nome} onChange={event => setNome(event.target.value)} className="border-slate-700 bg-slate-950 text-white" /></Field>
+      <Field label="Fabricante / modelo"><Input maxLength={120} placeholder="Ex.: Bambu Lab A1" value={modelo} onChange={event => setModelo(event.target.value)} className="border-slate-700 bg-slate-950 text-white" /></Field>
+      <Field label="Potência (W)"><Input type="number" min="1" value={potencia} onChange={event => setPotencia(Number(event.target.value))} className="border-slate-700 bg-slate-950 text-white" /></Field>
+      <Field label="Bico (mm)"><Input type="number" min="0.1" step="0.1" value={bico} onChange={event => setBico(Number(event.target.value))} className="border-slate-700 bg-slate-950 text-white" /></Field>
+      <Field label="Manutenção a cada (h)"><Input type="number" min="1" step="1" value={serviceInterval} onChange={event => setServiceInterval(Number(event.target.value))} className="border-slate-700 bg-slate-950 text-white" /></Field>
+      <div className="flex items-end gap-2 lg:col-span-5"><Button type="submit" className="bg-indigo-600 text-white hover:bg-indigo-500">Salvar impressora</Button><Button type="button" variant="outline" onClick={() => setShowAddForm(false)} className="border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800 hover:text-white">Cancelar</Button></div>
+    </form></Card>}
 
     {!impressoras.length && <Card className="rounded-2xl border-slate-800 bg-slate-900 p-8 text-center"><Cpu className="mx-auto h-8 w-8 text-slate-500" /><p className="mt-3 text-sm text-slate-300">Adicione sua primeira impressora para acompanhar a produção.</p></Card>}
 
@@ -327,41 +194,14 @@ export const ParqueImpressoras: React.FC = () => {
         
         const rawTempoEstimado = currentProject?.tempoEstimadoHoras ?? 18;
         const totalSecondsEstimated = parseAndSanitizeEstimatedSeconds(rawTempoEstimado);
+
+        // Obter os segundos restantes diretamente do mapa autónomo ou calcular se não existir
         const remainingPrintSeconds = remainingSecondsMap[printer.id] ?? Math.round(totalSecondsEstimated * (1 - (Math.min(100, Math.max(0, progress)) / 100)));
 
         const events = historicoImpressoras.filter(event => event.impressoraId === printer.id).slice(0, 5);
         const lastMaintenance = historicoImpressoras.find(event => event.impressoraId === printer.id && event.tipo === 'maintenance_completed');
-        
-        const customMeta = customInvestments[printer.id];
-        const custoInvestimento = customMeta ? customMeta.custoInvestimento : ((printer as any).custoInvestimento || 0);
-        const vidaUtil = customMeta ? customMeta.vidaUtilHoras : ((printer as any).vidaUtilHoras || 5000);
-        const depreciacaoH = customMeta ? customMeta.depreciacaoHora : (printer.depreciacaoHora || (vidaUtil > 0 ? custoInvestimento / vidaUtil : 0.50));
-
         return <Card key={printer.id} className="space-y-4 rounded-2xl border-slate-800 bg-slate-900 p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="truncate text-base font-bold text-white">🖨 {printer.nome}</h3>
-              <p className="mt-1 text-xs text-slate-400">{printer.modelo} <span className="px-1">·</span> Bico {printer.bicoMm} mm <span className="px-1">·</span> {printer.potenciaWatts} W</p>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => handleOpenEdit(printer)} className="h-8 border-slate-700 bg-slate-950 text-indigo-300 hover:bg-indigo-950/40 text-xs">
-                <Edit2 className="w-3.5 h-3.5 mr-1"/> Editar
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => handleDelete(printer.id, printer.nome)} className="h-8 border-slate-700 bg-slate-950 text-rose-400 hover:bg-rose-950/40 text-xs">
-                <Trash2 className="w-3.5 h-3.5"/>
-              </Button>
-              <Badge variant="outline" className={`shrink-0 ${status.badge}`}><span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</Badge>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-indigo-950/20 border border-indigo-500/20 px-4 py-2.5 text-xs">
-            <span className="text-indigo-300 flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-              Investimento: <strong className="text-white">R$ {Number(custoInvestimento).toFixed(2)}</strong> ({vidaUtil}h úteis)
-            </span>
-            <span className="text-slate-300">Depreciação: <strong className="text-emerald-400">R$ {depreciacaoH.toFixed(2)}/h</strong></span>
-          </div>
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-base font-bold text-white">🖨 {printer.nome}</h3><p className="mt-1 text-xs text-slate-400">{printer.modelo} <span className="px-1">·</span> Bico {printer.bicoMm} mm <span className="px-1">·</span> {printer.potenciaWatts} W</p></div><Badge variant="outline" className={`shrink-0 ${status.badge}`}><span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</Badge></div>
 
           {printer.projetoAtualId ? <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Projeto atual</p><p className="mt-1 font-semibold text-white">{printer.projetoAtual || currentProject?.nomePeca || 'Projeto em andamento'}</p></div><span className="shrink-0 text-right text-xs text-slate-400"><Clock3 className="mr-1 inline h-3.5 w-3.5" />~{formatSecondsToTime(remainingPrintSeconds)} restantes</span></div>
             <div><div className="mb-1 flex justify-between text-xs"><span className="text-slate-400">Progresso informado</span><strong className="text-sky-300">{Number(progress).toFixed(1)}%</strong></div><Progress value={progress} className="h-2 bg-slate-800 [&>div]:bg-sky-500" /><input aria-label={`Progresso de ${printer.nome}`} type="range" min="0" max="100" step="0.1" value={progress} onChange={event => { const val = Number(event.target.value); setProgressDraft(previous => ({ ...previous, [printer.id]: val })); setRemainingSecondsMap(previous => ({ ...previous, [printer.id]: Math.round(totalSecondsEstimated * (1 - (val / 100))) })); }} onPointerUp={event => { const value = Number(event.currentTarget.value); void updatePrinterProgress(printer.id, value).then(saved => { if (saved) setProgressDraft(previous => { const next = { ...previous }; delete next[printer.id]; return next; }); }); }} onKeyUp={event => { const value = Number(event.currentTarget.value); void updatePrinterProgress(printer.id, value); }} disabled={!['imprimindo', 'pausada'].includes(printer.status)} className="mt-2 w-full accent-sky-500 disabled:opacity-40" /></div>
@@ -386,32 +226,6 @@ export const ParqueImpressoras: React.FC = () => {
         </Card>;
       })}
     </section>
-
-    {/* MODAL DE EDIÇÃO DA IMPRESSORA */}
-    {editingPrinterId && (
-      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-3 sm:p-6" onClick={() => setEditingPrinterId(null)}>
-        <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6" onClick={e => e.stopPropagation()}>
-          <div className="flex items-start justify-between">
-            <h3 className="font-bold text-white">Editar Impressora & Custos</h3>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setEditingPrinterId(null)}><X className="h-4 w-4" /></Button>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Nome"><Input value={editNome} onChange={e => setEditNome(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
-            <Field label="Modelo"><Input value={editModelo} onChange={e => setEditModelo(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
-            <Field label="Potência (W)"><Input type="number" value={editPotencia} onChange={e => setEditPotencia(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
-            <Field label="Bico (mm)"><Input type="number" step="0.1" value={editBico} onChange={e => setEditBico(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
-            <Field label="Preço Investimento (R$)"><Input type="number" step="0.01" value={editPrecoCompra} onChange={e => setEditPrecoCompra(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
-            <Field label="Vida útil (Horas)"><Input type="number" step="100" value={editVidaUtil} onChange={e => setEditVidaUtil(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setEditingPrinterId(null)} className="border-slate-700 bg-slate-950 text-slate-200">Cancelar</Button>
-            <Button type="button" onClick={handleUpdate} className="bg-indigo-600 text-white hover:bg-indigo-500">Salvar Alterações</Button>
-          </div>
-        </div>
-      </div>
-    )}
 
     {maintenancePrinter && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/80 p-3 sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget && !savingMaintenance) setMaintenancePrinter(null); }}><form onSubmit={submitMaintenance} className="my-auto w-full max-w-lg space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6"><div className="flex items-start justify-between"><div><h3 className="font-bold text-white">Registrar manutenção</h3><p className="text-sm text-slate-400">{impressoras.find(item => item.id === maintenancePrinter)?.nome}</p></div><Button type="button" variant="ghost" size="icon" onClick={() => setMaintenancePrinter(null)}><X className="h-4 w-4" /></Button></div><fieldset className="space-y-2"><legend className="mb-2 text-xs font-semibold text-slate-300">O que foi feito?</legend>{MAINTENANCE_TASKS.map(task => <label key={task} className="flex items-center gap-3 rounded-lg bg-slate-950 px-3 py-2.5 text-sm text-slate-200"><input type="checkbox" checked={maintenanceTasks.includes(task)} onChange={event => setMaintenanceTasks(previous => event.target.checked ? [...previous, task] : previous.filter(value => value !== task))} className="accent-indigo-500" />{task}</label>)}</fieldset><label className="block text-xs text-slate-300">Observação<textarea rows={3} value={maintenanceNote} onChange={event => setMaintenanceNote(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-white" placeholder="Detalhes opcionais" /></label><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setMaintenancePrinter(null)} className="border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800 hover:text-white">Cancelar</Button><Button type="submit" disabled={savingMaintenance} className="bg-indigo-600 text-white hover:bg-indigo-500">{savingMaintenance ? 'Salvando…' : 'Registrar manutenção'}</Button></div></form></div>}
   </div>;

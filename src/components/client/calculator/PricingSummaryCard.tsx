@@ -3,12 +3,12 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Layers, Zap, Save, CheckCircle2 } from 'lucide-react';
+import { DollarSign, Layers, Zap, Save, CheckCircle2, Truck } from 'lucide-react';
 import { PricingCalculationResult } from '@/services/pricingService';
 
 interface PricingSummaryCardProps {
   nomePeca: string;
-  calculationResult: PricingCalculationResult;
+  calculationResult: PricingCalculationResult & { valorFrete?: number };
   taxaFalhaPorcento: number;
   onSalvarOrcamento: () => void;
   onAprovarProducao: () => void;
@@ -70,6 +70,17 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
           <span className="text-slate-400">Mão de Obra / Pós-processamento:</span>
           <span className="font-bold text-white">
             R$ {calculationResult.laborCost.toFixed(2)}
+          </span>
+        </div>
+
+        {/* Linha de Frete separada abaixo de Mão de Obra */}
+        <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-800/50">
+          <span className="flex items-center gap-1 text-slate-400">
+            <Truck className="w-3.5 h-3.5 text-cyan-400" />
+            Frete:
+          </span>
+          <span className="font-bold text-white">
+            R$ {(calculationResult.valorFrete || 0).toFixed(2)}
           </span>
         </div>
       </div>
