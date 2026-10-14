@@ -15,7 +15,7 @@ Deno.serve(async request => {
     const { data: profile, error: profileError } = await anon.from('spartan_profiles').select('company_id, role, ai_credits_remaining').eq('id', auth.user.id).single();
     if (profileError || !profile) return fail('Profile not found', 403);
     const body = await request.json();
-    const question = String(body.question || '').trim();
+    const question = String(body.question || body.prompt || '').trim();
     if (!question || question.length > 4000) return fail('Question must contain 1 to 4000 characters.');
     const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) return fail('AI service is not configured. Add OPENAI_API_KEY to Supabase function secrets.', 503);

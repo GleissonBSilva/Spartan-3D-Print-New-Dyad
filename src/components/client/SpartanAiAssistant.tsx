@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Bot, Thermometer, Copy } from 'lucide-react';
+import { Sparkles, Bot, Thermometer, Copy, Check, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +15,7 @@ export const SpartanAiAssistant: React.FC = () => {
   const [pergunta, setPergunta] = useState('');
   const [resposta, setResposta] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   const sugestoes = [
     { cat: 'falha', text: 'Minha peça em PETG está apresentando stringing (fiapos) excessivo. Como calibrar no OrcaSlicer?' },
@@ -33,9 +34,9 @@ export const SpartanAiAssistant: React.FC = () => {
         throw new Error("Supabase não inicializado.");
       }
 
-      // Chamada direta à Edge Function 'ai-assistant'
+      // Chamada direta à Edge Function 'ai-assistant' suportando question e prompt
       const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { prompt: pergunta.trim() }
+        body: { question: pergunta.trim(), prompt: pergunta.trim() }
       });
 
       if (error) {
@@ -51,6 +52,18 @@ export const SpartanAiAssistant: React.FC = () => {
     } finally { 
       setCarregando(false); 
     }
+  };
+
+  const handleCopy = () => {
+    if (!resposta) return;
+    navigator.clipboard.writeText(resposta);
+    setCopiado(true);
+    toast.success('Solução copiada para a área de transferência!');
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  const handleLimpar = () => {
+    setResposta(null);
   };
 
   return (
@@ -72,7 +85,7 @@ export const SpartanAiAssistant: React.FC = () => {
               </div>
             </div>
             <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
-              IA via Supabase & Groq
+              IA via Supabase
             </Badge>
           </div>
         </CardHeader>
@@ -113,46 +126,91 @@ export const SpartanAiAssistant: React.FC = () => {
             </div>
           </form>
 
-          {resposta && (
+          {carregando && (
+            <div className="p-4 rounded-xl bg-slate-950 border border-indigo-500/30 space-y-3 animate-pulse">
+              <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                <span>Consultando base de conhecimento técnico e gerando diagnóstico 3D...</span>
+              </div>
+              <div className="space-y-2 pt-1">
+                <div className="h-3 bg-slate-850 rounded w-3/4"></div>
+                <div className="h-3 bg-slate-850 rounded w-full"></div>
+                <div className="h-3 bg-slate-850 rounded w-5/6"></div>
+              </div>
+            </div>
+          )}
+
+          {resposta && !carregando && (
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 animate-in fade-in duration-300">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
                 <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" /> Resposta da IA Spartan:
                 </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    navigator.clipboard.writeText(resposta);
-                    toast.success('Solução copiada!');
-                  }}
-                  className="h-7 text-xs text-slate-300 hover:text-white"
-                >
-                  <Copy className="w-3.5 h-3.5 mr-1" /> Copiar
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleCopy}
+                    className="h-7 text-xs text-slate-300 hover:text-white hover:bg-slate-850 rounded-lg px-2"
+                  >
+                    {copiado ? <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+                    {copiado ? 'Copiado!' : 'Copiar'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleLimpar}
+                    className="h-7 text-xs text-slate-400 hover:text-rose-400 hover:bg-slate-850 rounded-lg px-2"
+                    title="Limpar resposta"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                    Limpar
+                  </Button>
+                </div>
               </div>
 
-              {/* Renderização rica em Markdown com suporte customizado a imagens e tabelas */}
+              {/* Renderização rica em Markdown com suporte customizado a cabeçalhos, listas, blocos de código e tabelas */}
               <div className="text-xs text-slate-200 font-sans leading-relaxed prose prose-invert max-w-none">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    img: ({ node, ...props }) => (
+                    h1: ({ ...props }) => <h1 className="text-base font-bold text-white mt-3 mb-1.5 pb-1 border-b border-slate-800" {...props} />,
+                    h2: ({ ...props }) => <h2 className="text-sm font-bold text-white mt-2.5 mb-1" {...props} />,
+                    h3: ({ ...props }) => <h3 className="text-xs font-semibold text-amber-300 mt-2 mb-1" {...props} />,
+                    p: ({ ...props }) => <p className="mb-2 leading-relaxed text-slate-200 text-xs" {...props} />,
+                    ul: ({ ...props }) => <ul className="list-disc list-outside pl-4 mb-2.5 space-y-1 text-xs text-slate-200" {...props} />,
+                    ol: ({ ...props }) => <ol className="list-decimal list-outside pl-4 mb-2.5 space-y-1 text-xs text-slate-200" {...props} />,
+                    li: ({ ...props }) => <li className="text-xs text-slate-200" {...props} />,
+                    strong: ({ ...props }) => <strong className="font-semibold text-white" {...props} />,
+                    blockquote: ({ ...props }) => <blockquote className="border-l-2 border-amber-500/80 pl-2.5 italic text-slate-300 my-2 text-xs" {...props} />,
+                    code: ({ children, ...props }) => {
+                      const isInline = !String(children).includes('\n');
+                      return isInline ? (
+                        <code className="rounded bg-slate-900 border border-slate-800 px-1 py-0.5 font-mono text-[11px] text-amber-300 font-semibold" {...props}>
+                          {children}
+                        </code>
+                      ) : (
+                        <pre className="overflow-x-auto rounded-xl bg-slate-900 p-2.5 my-2 border border-slate-800 font-mono text-[11px] text-slate-200">
+                          <code {...props}>{children}</code>
+                        </pre>
+                      );
+                    },
+                    img: ({ ...props }) => (
                       <img 
                         {...props} 
                         className="rounded-lg max-h-64 object-cover my-3 border border-slate-700 shadow-md" 
                         alt={props.alt || 'Imagem de diagnóstico 3D'} 
                       />
                     ),
-                    table: ({ node, ...props }) => (
-                      <div className="overflow-x-auto my-4">
-                        <table className="min-w-full divide-y divide-slate-700 border border-slate-800 text-xs" {...props} />
+                    table: ({ ...props }) => (
+                      <div className="overflow-x-auto my-3 rounded-lg border border-slate-800">
+                        <table className="min-w-full divide-y divide-slate-700 text-xs" {...props} />
                       </div>
                     ),
-                    th: ({ node, ...props }) => (
+                    th: ({ ...props }) => (
                       <th className="px-3 py-2 bg-slate-900 text-left font-semibold text-slate-300 border-b border-slate-800" {...props} />
                     ),
-                    td: ({ node, ...props }) => (
+                    td: ({ ...props }) => (
                       <td className="px-3 py-2 border-b border-slate-800 text-slate-300" {...props} />
                     )
                   }}
