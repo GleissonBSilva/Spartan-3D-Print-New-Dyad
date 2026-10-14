@@ -12,6 +12,9 @@ import {
   ArrowUpRight,
   Sparkles,
   Bot,
+  Copy,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -28,52 +31,134 @@ import {
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { toast } from 'sonner';
 import { requireSupabase } from '@/lib/supabase';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const AdminOverview: React.FC = () => {
   const { metrics, clients } = useSaaSData();
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiInsight, setAiInsight] = useState('Insights are generated from the current dashboard data.');
+  const [copied, setCopied] = useState(false);
+  const [aiInsight, setAiInsight] = useState(
+    'Clique em "Gerar Novo Insight" para obter uma análise estratégica personalizada sobre o faturamento, taxa de retenção e oportunidades de crescimento da Spartan 3D.'
+  );
   const newThisMonth = clients.filter(client => client.joinedAt && new Date(client.joinedAt).getMonth() === new Date().getMonth() && new Date(client.joinedAt).getFullYear() === new Date().getFullYear()).length;
 
   const handleGenerateAiInsight = async () => {
     setAiGenerating(true);
     try {
-      const { data, error } = await requireSupabase().functions.invoke('ai-assistant', { body: { question: `Analyze these actual subscription metrics and give one practical, evidence-based recommendation. Do not invent missing data. MRR: R$ ${metrics.mrr}; active clients: ${metrics.activeClients}; paid revenue history: ${JSON.stringify(metrics.revenueHistory)}.` } });
+      const { data, error } = await requireSupabase().functions.invoke('ai-assistant', {
+        body: {
+          question: `Atue como consultor de crescimento e retenção da plataforma Spartan 3D. Analise as métricas reais atuais e forneça recomendações práticas, fundamentadas e objetivas para aumentar o faturamento (MRR) e diminuir o churn. Seja direto, organizado em tópicos claros com destaques em negrito e não invente dados não fornecidos. Métricas atuais: MRR: R$ ${metrics.mrr}; Assinantes Ativos: ${metrics.activeClients}; Novos Clientes no Mês: ${newThisMonth}; Churn Estimado: ${metrics.churnRate}%; Histórico de Receita: ${JSON.stringify(metrics.revenueHistory)}.`
+        }
+      });
       if (error) throw error;
       setAiInsight(data.answer);
-      toast.success('Análise gerada com IA.');
+      toast.success('Análise de crescimento gerada com IA.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao gerar análise.');
-    } finally { setAiGenerating(false); }
+    } finally {
+      setAiGenerating(false);
+    }
   };
+
+  const handleCopyInsight = () => {
+    if (!aiInsight) return;
+    navigator.clipboard.writeText(aiInsight);
+    setCopied(true);
+    toast.success('Insight copiado para a área de transferência!');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-6">
       {/* AI Growth Copilot Alert Banner */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-900/60 via-purple-900/40 to-slate-900 border border-indigo-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-start gap-3.5">
-          <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
-            <Bot className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-white text-sm">Copilot de Crescimento & MRR</span>
-              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
-                IA via Supabase
-              </Badge>
+      <div className="rounded-2xl bg-gradient-to-r from-indigo-950/70 via-purple-950/50 to-slate-900 border border-indigo-500/30 p-5 shadow-xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-500/20 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+              <Bot className="w-5 h-5" />
             </div>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl">{aiInsight}</p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white text-sm">Copilot de Crescimento & MRR</span>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
+                  IA via Supabase
+                </Badge>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Insights estratégicos orientados aos dados de faturamento e assinantes
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {aiInsight && !aiGenerating && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCopyInsight}
+                className="h-8 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl px-2.5"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+                {copied ? 'Copiado!' : 'Copiar'}
+              </Button>
+            )}
+            <Button
+              onClick={handleGenerateAiInsight}
+              disabled={aiGenerating}
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shrink-0 h-8 px-3"
+            >
+              <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-300" />
+              {aiGenerating ? 'Analisando dados...' : 'Gerar Novo Insight'}
+            </Button>
           </div>
         </div>
 
-        <Button
-          onClick={handleGenerateAiInsight}
-          disabled={aiGenerating}
-          size="sm"
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shrink-0"
-        >
-          <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-300" />
-          {aiGenerating ? 'Analisando dados...' : 'Gerar Novo Insight'}
-        </Button>
+        {aiGenerating ? (
+          <div className="p-4 rounded-xl bg-slate-950/70 border border-indigo-500/20 space-y-2.5 animate-pulse">
+            <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+              <span>Cruzando dados de MRR, retenção e histórico financeiro para gerar estratégias...</span>
+            </div>
+            <div className="space-y-1.5 pt-1">
+              <div className="h-3 bg-slate-800 rounded w-3/4"></div>
+              <div className="h-3 bg-slate-800/80 rounded w-full"></div>
+              <div className="h-3 bg-slate-800/60 rounded w-5/6"></div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-slate-950/60 border border-slate-800/80 p-4 text-xs text-slate-200 leading-relaxed font-sans prose prose-invert max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ ...props }) => <h1 className="text-sm font-bold text-white mt-2 mb-1 pb-1 border-b border-slate-800" {...props} />,
+                h2: ({ ...props }) => <h2 className="text-xs font-bold text-white mt-2 mb-1" {...props} />,
+                h3: ({ ...props }) => <h3 className="text-xs font-semibold text-indigo-300 mt-1.5 mb-0.5" {...props} />,
+                p: ({ ...props }) => <p className="mb-1.5 leading-relaxed text-slate-200 text-xs" {...props} />,
+                ul: ({ ...props }) => <ul className="list-disc list-outside pl-4 mb-2 space-y-1 text-xs text-slate-200" {...props} />,
+                ol: ({ ...props }) => <ol className="list-decimal list-outside pl-4 mb-2 space-y-1 text-xs text-slate-200" {...props} />,
+                li: ({ ...props }) => <li className="text-xs text-slate-200" {...props} />,
+                strong: ({ ...props }) => <strong className="font-semibold text-white" {...props} />,
+                blockquote: ({ ...props }) => <blockquote className="border-l-2 border-indigo-500 pl-2.5 italic text-slate-300 my-1 text-xs" {...props} />,
+                code: ({ children, ...props }) => {
+                  const isInline = !String(children).includes('\n');
+                  return isInline ? (
+                    <code className="rounded bg-slate-900 border border-slate-800 px-1 py-0.5 font-mono text-[11px] text-amber-300 font-semibold" {...props}>
+                      {children}
+                    </code>
+                  ) : (
+                    <pre className="overflow-x-auto rounded-xl bg-slate-900 p-2.5 my-1.5 border border-slate-800 font-mono text-[11px] text-slate-200">
+                      <code {...props}>{children}</code>
+                    </pre>
+                  );
+                },
+              }}
+            >
+              {aiInsight}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -200,7 +285,7 @@ export const AdminOverview: React.FC = () => {
                   />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
-                    formatter={(value: any) => [`R$ ${Number(value).toLocaleString('pt-BR')}`, 'Receita']}
+                    formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString('pt-BR')}`, 'Receita']}
                   />
                   <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
                 </AreaChart>
@@ -235,7 +320,7 @@ export const AdminOverview: React.FC = () => {
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
-                    formatter={(value: any) => [`${value}%`, 'Participação']}
+                    formatter={(value: unknown) => [`${value}%`, 'Participação']}
                   />
                 </PieChart>
               </ResponsiveContainer>
