@@ -4,7 +4,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, QrCode, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Plus, QrCode, CheckCircle2, Clock, AlertCircle, User } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 
 interface AdminClientsTableProps {
@@ -54,11 +54,17 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                 <tr key={client.id} className="hover:bg-slate-800/30 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={client.avatar}
-                        alt={client.name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                      {client.avatar ? (
+                        <img
+                          src={client.avatar}
+                          alt={client.name}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                          <User className="w-4 h-4" />
+                        </div>
+                      )}
                       <div>
                         <p className="font-bold text-white text-sm">{client.name}</p>
                         <p className="text-[11px] text-slate-400">{client.companyName || client.email}</p>
