@@ -104,7 +104,7 @@ export function generatePixPayload(params: PixChargeParams): string {
   const additionalData = formatEmvField('62', formatEmvField('05', txId));
 
   // Montagem preliminar do payload
-  let payload =
+  const payload =
     formatEmvField('00', '01') + // Payload Format Indicator
     merchantAccountInfo +
     formatEmvField('52', '0000') + // Merchant Category Code

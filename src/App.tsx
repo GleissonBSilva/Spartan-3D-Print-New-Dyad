@@ -15,6 +15,7 @@ const ClientPortal = lazy(() => import('./pages/ClientPortal'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 import { RequireRole } from "@/components/auth/RequireRole";
 import { OfflineNotice } from "@/components/layout/OfflineNotice";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,8 +32,9 @@ const App = () => (
           <Sonner position="top-right" richColors />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <OfflineNotice />
-            <Suspense fallback={<div className="min-h-screen bg-slate-950 grid place-items-center text-slate-300" role="status">Carregando tela…</div>}>
-            <Routes>
+            <ErrorBoundary>
+              <Suspense fallback={<div className="min-h-screen bg-slate-950 grid place-items-center text-slate-300" role="status">Carregando tela…</div>}>
+                <Routes>
               {/* Landing Page */}
               <Route path="/" element={<Index />} />
 
@@ -64,7 +66,8 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
-          </BrowserRouter>
+          </ErrorBoundary>
+        </BrowserRouter>
         </TooltipProvider>
       </SaaSDataProvider>
     </AuthProvider>
