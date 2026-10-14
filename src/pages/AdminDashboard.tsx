@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { AdminOverview } from '@/components/admin/AdminOverview';
 import { AdminClientsTable } from '@/components/admin/AdminClientsTable';
 import { AdminBillingTable } from '@/components/admin/AdminBillingTable';
+import { AdminFinancialArea } from '@/components/admin/AdminFinancialArea';
 import { AdminPlansManager } from '@/components/admin/AdminPlansManager';
 import { AdminAiCopilot } from '@/components/admin/AdminAiCopilot';
 import { AdminWebhooksMonitor } from '@/components/admin/AdminWebhooksMonitor';
@@ -17,7 +18,7 @@ export const AdminDashboard: React.FC = () => {
   const [newClientModal, setNewClientModal] = useState(false);
 
   const isClientsView = currentPath === '/admin/clientes';
-  const isBillingView = currentPath === '/admin/cobranca';
+  const isBillingView = currentPath === '/admin/cobranca' || currentPath === '/admin/financeiro';
   const isPlansView = currentPath === '/admin/planos';
   const isAiCopilotView = currentPath === '/admin/ia-copilot';
   const isWebhooksView = currentPath === '/admin/webhooks';
@@ -29,7 +30,7 @@ export const AdminDashboard: React.FC = () => {
         isClientsView
           ? 'Gestão de Clientes & Assinantes'
           : isBillingView
-          ? 'Faturamento & Cobrança Pix / Cartão'
+          ? 'Financeiro, Cobrança & Gestão Pix'
           : isPlansView
           ? 'Planos, Precificação & Monetização'
           : isAiCopilotView
@@ -42,7 +43,7 @@ export const AdminDashboard: React.FC = () => {
         isClientsView
           ? 'Visualize, altere planos e gerencie o ciclo de vida dos assinantes'
           : isBillingView
-          ? 'Histórico de faturas, conciliação Pix instantânea e recuperação automática'
+          ? 'Gestão financeira completa, emissão de Pix Copia e Cola, QR Code, faturas e baixa manual'
           : isPlansView
           ? 'Configure limites de usuários, créditos de inteligência artificial e preços'
           : isAiCopilotView
@@ -62,7 +63,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {isClientsView && <AdminClientsTable onOpenNewClientModal={() => setNewClientModal(true)} />}
-      {isBillingView && <AdminBillingTable showCreateButton={true} />}
+      {isBillingView && <AdminFinancialArea />}
       {isPlansView && <AdminPlansManager />}
       {isAiCopilotView && <AdminAiCopilot />}
       {isWebhooksView && <AdminWebhooksMonitor />}

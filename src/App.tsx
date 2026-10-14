@@ -43,6 +43,7 @@ const App = () => (
               {/* Admin Views */}
               <Route path="/admin" element={<RequireRole roles={["admin"]}><AdminDashboard /></RequireRole>} />
               <Route path="/admin/clientes" element={<RequireRole roles={["admin"]}><AdminDashboard /></RequireRole>} />
+              <Route path="/admin/financeiro" element={<RequireRole roles={["admin"]}><AdminDashboard /></RequireRole>} />
               <Route path="/admin/cobranca" element={<RequireRole roles={["admin"]}><AdminDashboard /></RequireRole>} />
               <Route path="/admin/planos" element={<RequireRole roles={["admin"]}><AdminDashboard /></RequireRole>} />
               <Route path="/admin/ia-copilot" element={<RequireRole roles={["admin"]}><AdminDashboard /></RequireRole>} />

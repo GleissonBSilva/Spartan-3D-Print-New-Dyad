@@ -48,8 +48,12 @@ export interface SaaSDataContextType {
   addClient: (client: Partial<User>) => void;
   updateClientStatus: (id: string, status: User['status']) => void;
   createInvoice: (clientId: string, amount: number, method?: Invoice['method'], planId?: string) => void;
+  createDirectInvoice: (params: { clientId: string; amount: number; dueDate?: string; planId?: string; method?: Invoice['method'] }) => Promise<Record<string, unknown> | null>;
+  confirmInvoicePayment: (invoiceId: string) => Promise<void>;
+  cancelInvoice: (invoiceId: string) => Promise<void>;
   openInvoiceCheckout: (invoiceId: string) => void;
   payInvoice: (invoiceId: string) => void;
+  refreshBilling: () => Promise<void>;
 }
 
 const SaaSDataContext = createContext<SaaSDataContextType | undefined>(undefined);
@@ -122,8 +126,12 @@ export const SaaSDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     addClient,
     updateClientStatus,
     createInvoice,
+    createDirectInvoice,
+    confirmInvoicePayment,
+    cancelInvoice,
     openInvoiceCheckout,
     payInvoice,
+    refreshBilling,
   } = useBillingState();
 
   const refreshFarmData = useCallback(async () => {
@@ -217,8 +225,12 @@ export const SaaSDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addClient,
         updateClientStatus,
         createInvoice,
+        createDirectInvoice,
+        confirmInvoicePayment,
+        cancelInvoice,
         openInvoiceCheckout,
         payInvoice,
+        refreshBilling,
       }}
     >
       {children}

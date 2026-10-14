@@ -3,7 +3,8 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, CheckCircle2, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, CheckCircle2, Clock, QrCode, ArrowUpRight } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 
 interface AdminBillingTableProps {
@@ -24,16 +25,28 @@ export const AdminBillingTable: React.FC<AdminBillingTableProps> = ({ showCreate
             Conciliação automática via Pix dinâmico e Cartão de Crédito
           </CardDescription>
         </div>
-        {showCreateButton && (
-          <Button
-            size="sm"
-            onClick={() => firstClient && createInvoice(firstClient.id, firstClientPlan?.priceMonthly || 0, 'pix')}
-            disabled={!firstClient}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-xl"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" /> Gerar Nova Fatura
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link to="/admin/financeiro">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-indigo-500/40 text-indigo-300 hover:text-white hover:bg-indigo-600/20 text-xs rounded-xl"
+            >
+              <QrCode className="w-3.5 h-3.5 mr-1" /> Área Pix & Financeiro
+              <ArrowUpRight className="w-3 h-3 ml-1" />
+            </Button>
+          </Link>
+          {showCreateButton && (
+            <Button
+              size="sm"
+              onClick={() => firstClient && createInvoice(firstClient.id, firstClientPlan?.priceMonthly || 0, 'pix')}
+              disabled={!firstClient}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-xl"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" /> Gerar Nova Fatura
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">

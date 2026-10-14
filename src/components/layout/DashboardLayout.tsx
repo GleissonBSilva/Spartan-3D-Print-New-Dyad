@@ -79,7 +79,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const adminNavItems: Array<{ label: string; href: string; icon: LucideIcon; badge?: string; highlight?: boolean }> = [
     { label: 'Visão Geral (MRR SaaS)', href: '/admin', icon: LayoutDashboard },
     { label: 'Makers & Assinantes', href: '/admin/clientes', icon: Users },
-    { label: 'Faturamento & Pix', href: '/admin/cobranca', icon: CreditCard },
+    { label: 'Financeiro & Pix', href: '/admin/financeiro', icon: CreditCard },
     { label: 'Planos Spartan 3D', href: '/admin/planos', icon: TrendingUp },
     { label: 'Copilot Administrativo', href: '/admin/ia-copilot', icon: Bot },
     { label: 'Webhooks', href: '/admin/webhooks', icon: Bell },
@@ -212,7 +212,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               </p>
               {navItems.map(item => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.href;
+                const isActive = location.pathname === item.href || (item.href === '/admin/financeiro' && location.pathname === '/admin/cobranca');
                 return (
                   <Link
                     key={item.href}

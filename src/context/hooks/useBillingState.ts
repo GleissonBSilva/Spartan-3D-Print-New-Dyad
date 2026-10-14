@@ -94,9 +94,90 @@ export function useBillingState() {
     }).catch(error => toast.error(`Não foi possível abrir o pagamento: ${error.message}`));
   };
 
-  const payInvoice = (_invoiceId: string) => {
-    toast.info('A confirmação de pagamento é processada pelo webhook do provedor.');
+  const confirmInvoicePayment = async (invoiceId: string) => {
+    if (!supabase) return;
+    try {
+      const nowIso = new Date().toISOString();
+      const { data: invoiceData, error: invoiceErr } = await supabase
+        .from('spartan_invoices')
+        .update({ status: 'paid', paid_at: nowIso })
+        .eq('id', invoiceId)
+        .select('*')
+        .single();
+      if (invoiceErr) throw invoiceErr;
+
+      // Se a fatura é de um cliente em atraso, restaura o status para 'active'
+      if (invoiceData?.user_id) {
+        const { data: profile } = await supabase
+          .from('spartan_profiles')
+          .select('status')
+          .eq('id', invoiceData.user_id)
+          .single();
+        if (profile?.status === 'overdue') {
+          await supabase.from('spartan_profiles').update({ status: 'active' }).eq('id', invoiceData.user_id);
+          setClients(prev => prev.map(c => c.id === invoiceData.user_id ? { ...c, status: 'active' } : c));
+        }
+      }
+
+      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'paid', paidAt: nowIso.slice(0, 10) } : inv));
+      toast.success('Pagamento liquidado com sucesso! Acesso do cliente verificado.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao confirmar pagamento da fatura.');
+    }
   };
 
-  return { clients, invoices, addClient, updateClientStatus, createInvoice, openInvoiceCheckout, payInvoice };
+  const cancelInvoice = async (invoiceId: string) => {
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from('spartan_invoices').update({ status: 'canceled' }).eq('id', invoiceId);
+      if (error) throw error;
+      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'failed' } : inv));
+      toast.info('Fatura cancelada.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao cancelar fatura.');
+    }
+  };
+
+  const createDirectInvoice = async (params: { clientId: string; amount: number; dueDate?: string; planId?: string; method?: Invoice['method'] }) => {
+    if (!supabase) return null;
+    try {
+      const targetClient = clients.find(c => c.id === params.clientId);
+      const companyId = targetClient?.companyId || user?.companyId;
+      const dueDate = params.dueDate || new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+      const { data, error } = await supabase.from('spartan_invoices').insert({
+        company_id: companyId,
+        user_id: params.clientId,
+        amount: params.amount,
+        method: params.method || 'pix',
+        plan_id: params.planId || targetClient?.planId || 'plan_pro',
+        currency: 'BRL',
+        status: 'pending',
+        due_date: dueDate,
+        provider: 'pix_direto',
+      }).select('*').single();
+      if (error) throw error;
+      toast.success('Cobrança Pix criada com sucesso!');
+      await load();
+      return data;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao criar cobrança.');
+      return null;
+    }
+  };
+
+  return {
+    clients,
+    invoices,
+    addClient,
+    updateClientStatus,
+    createInvoice,
+    createDirectInvoice,
+    confirmInvoicePayment,
+    cancelInvoice,
+    openInvoiceCheckout,
+    payInvoice,
+    refreshBilling: load,
+  };
 }
