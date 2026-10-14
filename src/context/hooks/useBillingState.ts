@@ -63,7 +63,15 @@ export function useBillingState() {
     void Promise.resolve(supabase.from('spartan_profiles').update({ status }).eq('id', id)).then(({ error }) => {
       if (error) throw error;
       setClients(prev => prev.map(client => client.id === id ? { ...client, status } : client));
-      toast.success('Status do cliente atualizado.');
+      if (status === 'overdue') {
+        toast.error('Status alterado para Atrasado. O acesso do cliente foi bloqueado imediatamente.');
+      } else if (status === 'active') {
+        toast.success('Status alterado para Ativo. O acesso do cliente foi liberado imediatamente.');
+      } else if (status === 'canceled') {
+        toast.info('Status alterado para Cancelado. O acesso do cliente foi suspenso.');
+      } else {
+        toast.success('Status do cliente atualizado com sucesso.');
+      }
     }).catch(error => toast.error(`Falha ao atualizar cliente: ${error.message}`));
   };
 

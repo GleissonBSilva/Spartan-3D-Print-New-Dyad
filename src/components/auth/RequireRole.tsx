@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { canAccessAdmin } from '@/lib/permissions';
+import { SubscriptionBlockedScreen } from '@/components/auth/SubscriptionBlockedScreen';
 
 export const RequireRole: React.FC<{ roles: Array<'admin' | 'client' | 'manager'>; children: React.ReactNode }> = ({ roles, children }) => {
   const { user, loading } = useAuth();
@@ -27,6 +28,12 @@ export const RequireRole: React.FC<{ roles: Array<'admin' | 'client' | 'manager'
   }
 
   const isAdmin = canAccessAdmin(user);
+
+  // Bloqueio imediato de acesso para clientes com status 'overdue' (atrasado) ou 'canceled' (cancelado)
+  if (!isAdmin && (user.status === 'overdue' || user.status === 'canceled')) {
+    return <SubscriptionBlockedScreen />;
+  }
+
   // Admins e desenvolvedores têm acesso irrestrito tanto ao admin quanto à farm (/cliente).
   // Usuários comuns acessam as rotas autorizadas para seu perfil.
   const allowed = isAdmin || roles.includes(userRole as 'admin' | 'client' | 'manager');

@@ -4,7 +4,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, QrCode, CheckCircle2, Clock, AlertCircle, User } from 'lucide-react';
+import { Plus, QrCode, CheckCircle2, Clock, AlertCircle, User, Lock, Unlock, Ban } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 
 interface AdminClientsTableProps {
@@ -85,42 +85,60 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                   </td>
                   <td className="py-3.5 px-4">
                     {client.status === 'active' && (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-semibold text-[11px]">
+                      <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
                         <CheckCircle2 className="w-3 h-3" /> Ativo
                       </span>
                     )}
                     {client.status === 'trialing' && (
-                      <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full font-semibold text-[11px]">
+                      <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
                         <Clock className="w-3 h-3" /> Teste Grátis
                       </span>
                     )}
                     {client.status === 'overdue' && (
-                      <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full font-semibold text-[11px]">
-                        <AlertCircle className="w-3 h-3" /> Atrasado
+                      <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-bold text-[11px]">
+                        <Lock className="w-3 h-3 text-rose-400" /> Atrasado (Bloqueado)
+                      </span>
+                    )}
+                    {client.status === 'canceled' && (
+                      <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
+                        <Ban className="w-3 h-3" /> Cancelado
                       </span>
                     )}
                   </td>
                   <td className="py-3.5 px-4 text-slate-400">{client.joinedAt}</td>
-                  <td className="py-3.5 px-4 text-right space-x-1.5">
+                  <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => createInvoice(client.id, plans.find(plan => plan.id === client.planId)?.priceMonthly || 0, 'pix')}
                       className="h-7 px-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg"
+                      title="Gerar cobrança Pix para o cliente"
                     >
                       <QrCode className="w-3 h-3 mr-1" />
                       Cobrar Pix
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        updateClientStatus(client.id, client.status === 'active' ? 'overdue' : 'active')
-                      }
-                      className="h-7 px-2 text-[11px] text-slate-400 hover:text-white rounded-lg"
-                    >
-                      Alternar Status
-                    </Button>
+
+                    {client.status === 'overdue' ? (
+                      <Button
+                        size="sm"
+                        onClick={() => updateClientStatus(client.id, 'active')}
+                        className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
+                        title="Liberar acesso do cliente imediatamente"
+                      >
+                        <Unlock className="w-3 h-3 mr-1" />
+                        Desbloquear
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => updateClientStatus(client.id, 'overdue')}
+                        className="h-7 px-2.5 text-[11px] bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg font-semibold transition-all"
+                        title="Alterar para atrasado e bloquear o acesso imediato do cliente"
+                      >
+                        <Lock className="w-3 h-3 mr-1" />
+                        Bloquear (Atrasado)
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

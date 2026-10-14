@@ -11,6 +11,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -159,7 +160,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser({ ...user, ...data, role: user.role, companyId: user.companyId });
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, register, resetPassword, logout, updateUserProfile }}>{children}</AuthContext.Provider>;
+  const refreshUser = useCallback(async () => {
+    if (!supabase) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    await loadUser(session?.user ?? null);
+  }, [loadUser]);
+
+  return <AuthContext.Provider value={{ user, loading, login, register, resetPassword, logout, updateUserProfile, refreshUser }}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
