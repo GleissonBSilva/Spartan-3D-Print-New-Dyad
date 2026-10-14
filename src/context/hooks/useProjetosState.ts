@@ -81,6 +81,8 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       charged_price: proj.precoCobrado, net_profit: proj.lucroLiquido, status: productionStarted ? 'orcamento' : proj.status,
       stock_deducted: false, notes: proj.observacoes || null, file_path: proj.arquivoPath || null,
       image_path: proj.imagemPath || null,
+      quantity: proj.quantidade || 1,
+      due_date: proj.dataEntrega || null,
     }).select('*').single()).then(async ({ data, error }) => {
       if (error) throw error;
       const row = data as ProjectRow;

@@ -75,6 +75,9 @@ export interface Impressora3D {
   projetoAtualId?: string;
   projetoAtual?: string;
   progressoPercentual?: number;
+  custoInvestimento?: number;
+  vidaUtilHoras?: number;
+  depreciacaoHora?: number;
 }
 
 export interface EventoImpressora {
@@ -140,6 +143,12 @@ export interface ProjetoImpressao3D {
   observacoes?: string;
   arquivoPath?: string;
   imagemPath?: string;
+  quantidadeLote?: number;
+  modoVenda?: string;
+  descontoAtacado?: number;
+  custoEmbalagem?: number;
+  custoBrinde?: number;
+  valorFrete?: number;
 }
 
 export interface Invoice {

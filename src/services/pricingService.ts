@@ -31,10 +31,55 @@ export class PricingService {
   /**
    * Sanitiza qualquer valor numérico para evitar NaN, Infinity ou negativos
    */
-  private static sanitizeNumber(val: any, fallback = 0, min = 0): number {
-    const parsed = typeof val === 'number' ? val : parseFloat(val);
+  private static sanitizeNumber(val: unknown, fallback = 0, min = 0): number {
+    const parsed = typeof val === 'number' ? val : parseFloat(String(val));
     if (isNaN(parsed) || !isFinite(parsed)) return fallback;
     return Math.max(min, parsed);
+  }
+
+  /**
+   * Converte formato de tempo (número decimal, HH:MM, HH:MM:SS, "1h30m", "45m") para horas decimais reais
+   */
+  static parseTimeToDecimal(val: string | number): number {
+    if (typeof val === 'number') {
+      return isNaN(val) || !isFinite(val) ? 0 : Math.max(0, val);
+    }
+    
+    if (!val) return 0;
+    
+    const clean = String(val).trim();
+    
+    // Formato HH:MM ou HH:MM:SS (ex: "01:30" ou "2:45:00")
+    if (clean.includes(':')) {
+      const parts = clean.split(':');
+      const hours = parseInt(parts[0], 10) || 0;
+      const minutes = parseInt(parts[1], 10) || 0;
+      const seconds = parseInt(parts[2], 10) || 0;
+      return Math.max(0, hours + (minutes / 60) + (seconds / 3600));
+    }
+
+    // Formato "1h30m", "2h", "45m"
+    const hmMatch = clean.match(/^(?:(\d+(?:[.,]\d+)?)\s*h(?:oras?)?)?\s*(?:(\d+(?:[.,]\d+)?)\s*m(?:in(?:utos?)?)?)?$/i);
+    if (hmMatch && (hmMatch[1] || hmMatch[2])) {
+      const hours = parseFloat((hmMatch[1] || '0').replace(',', '.')) || 0;
+      const minutes = parseFloat((hmMatch[2] || '0').replace(',', '.')) || 0;
+      return Math.max(0, hours + (minutes / 60));
+    }
+    
+    // Número decimal padrão (ex: "1.5" ou "1,5")
+    const num = parseFloat(clean.replace(',', '.'));
+    return isNaN(num) || !isFinite(num) ? 0 : Math.max(0, num);
+  }
+
+  /**
+   * Formata horas decimais para string amigável (ex: 1.5 -> "1h30m00s")
+   */
+  static formatHours(decimalHours: number): string {
+    const safeValue = Math.max(0, decimalHours);
+    const hours = Math.floor(safeValue);
+    const minutes = Math.round((safeValue - hours) * 60);
+    const seconds = 0;
+    return `${hours}h${String(minutes).padStart(2, '0')}m${String(seconds).padStart(2, '0')}s`;
   }
 
   /**

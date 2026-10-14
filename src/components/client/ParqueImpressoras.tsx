@@ -57,7 +57,9 @@ export const ParqueImpressoras: React.FC = () => {
 
       const savedInv = localStorage.getItem('ph3d_printer_investments_v2');
       if (savedInv) setCustomInvestments(JSON.parse(savedInv));
-    } catch (e) {}
+    } catch (e) {
+      console.error('Erro ao carregar dados do parque de impressoras do localStorage:', e);
+    }
   }, []);
 
   // Filtra as impressoras removendo as que foram marcadas como deletadas localmente
@@ -124,34 +126,19 @@ export const ParqueImpressoras: React.FC = () => {
     });
 
     const interval = setInterval(() => {
-      setProgressDraft(prevProgress => {
-        const nextProgress = { ...prevProgress };
-        let progressChanged = false;
+      setRemainingSecondsMap(prevSecs => {
+        let secsChanged = false;
+        const nextSecs = { ...prevSecs };
 
-        setRemainingSecondsMap(prevSecs => {
-          const nextSecs = { ...prevSecs };
-          let secsChanged = false;
-
-          printingPrinters.forEach(p => {
-            const currentSecs = nextSecs[p.id];
-            if (currentSecs !== undefined && currentSecs > 0) {
-              nextSecs[p.id] = currentSecs - 1;
-              secsChanged = true;
-
-              const currentProject = projetos.find(proj => proj.id === p.projetoAtualId);
-              const totalSecs = parseAndSanitizeEstimatedSeconds(currentProject?.tempoEstimadoHoras ?? 18);
-              if (totalSecs > 0) {
-                const calculatedProgress = Number((((totalSecs - nextSecs[p.id]) / totalSecs) * 100).toFixed(2));
-                nextProgress[p.id] = Math.min(100, calculatedProgress);
-                progressChanged = true;
-              }
-            }
-          });
-
-          return secsChanged ? nextSecs : prevSecs;
+        printingPrinters.forEach(p => {
+          const currentSecs = nextSecs[p.id];
+          if (currentSecs !== undefined && currentSecs > 0) {
+            nextSecs[p.id] = currentSecs - 1;
+            secsChanged = true;
+          }
         });
 
-        return progressChanged ? nextProgress : prevProgress;
+        return secsChanged ? nextSecs : prevSecs;
       });
     }, 1000);
 
@@ -186,7 +173,7 @@ export const ParqueImpressoras: React.FC = () => {
       custoInvestimento: valorInvestimento,
       vidaUtilHoras: horasVidaUtil,
       depreciacaoHora: depreciacaoCalculada
-    } as any);
+    });
 
     if (saved) { 
       setNome(''); 
@@ -204,8 +191,8 @@ export const ParqueImpressoras: React.FC = () => {
     setEditBico(printer.bicoMm || 0.4);
     
     const currentCustom = customInvestments[printer.id];
-    setEditPrecoCompra(currentCustom ? currentCustom.custoInvestimento : ((printer as any).custoInvestimento ?? 5000));
-    setEditVidaUtil(currentCustom ? currentCustom.vidaUtilHoras : ((printer as any).vidaUtilHoras ?? 5000));
+    setEditPrecoCompra(currentCustom ? currentCustom.custoInvestimento : (printer.custoInvestimento ?? 5000));
+    setEditVidaUtil(currentCustom ? currentCustom.vidaUtilHoras : (printer.vidaUtilHoras ?? 5000));
   };
 
   const handleUpdate = (event: React.FormEvent) => {
@@ -233,30 +220,27 @@ export const ParqueImpressoras: React.FC = () => {
     setCustomInvestments(updatedCustoms);
     try {
       localStorage.setItem('ph3d_printer_investments_v2', JSON.stringify(updatedCustoms));
-    } catch (e) {}
-
-    if (updateImpressora) {
-      updateImpressora(editingPrinterId, {
-        ...printerToUpdate,
-        nome: editNome.trim(),
-        modelo: editModelo.trim(),
-        potenciaWatts: Number(editPotencia) || 350,
-        bicoMm: Number(editBico) || 0.4,
-      } as any);
+    } catch (e) {
+      console.error('Erro ao salvar investimentos customizados no localStorage:', e);
     }
+
+    void updateImpressora(editingPrinterId, {
+      nome: editNome.trim(),
+      modelo: editModelo.trim(),
+      potenciaWatts: Number(editPotencia) || 350,
+      bicoMm: Number(editBico) || 0.4,
+    });
 
     toast.success('Preço e vida útil salvos com sucesso!');
     setEditingPrinterId(null);
   };
 
-  const handleDelete = (id: string, nomeImpressora: string) => {
+  const handleDelete = async (id: string, nomeImpressora: string) => {
     if (confirm(`Tem certeza que deseja excluir a impressora "${nomeImpressora}"?`)) {
-      // 1. Tenta apagar via contexto global se disponível
-      if (deleteImpressora) {
-        try { deleteImpressora(id); } catch (e) {}
-      }
+      // 1. Apaga no Supabase / contexto global
+      await deleteImpressora(id);
 
-      // 2. Adiciona à lista de excluídos locais e remove dos investimentos
+      // 2. Remove dos investimentos locais
       const newDeleted = [...deletedPrinterIds, id];
       setDeletedPrinterIds(newDeleted);
 
@@ -267,7 +251,9 @@ export const ParqueImpressoras: React.FC = () => {
       try {
         localStorage.setItem('ph3d_deleted_printers', JSON.stringify(newDeleted));
         localStorage.setItem('ph3d_printer_investments_v2', JSON.stringify(updatedCustoms));
-      } catch (e) {}
+      } catch (e) {
+        console.error('Erro ao salvar impressoras excluídas no localStorage:', e);
+      }
 
       toast.success('Impressora excluída com sucesso.');
     }
@@ -333,8 +319,8 @@ export const ParqueImpressoras: React.FC = () => {
         const lastMaintenance = historicoImpressoras.find(event => event.impressoraId === printer.id && event.tipo === 'maintenance_completed');
         
         const customMeta = customInvestments[printer.id];
-        const custoInvestimento = customMeta ? customMeta.custoInvestimento : ((printer as any).custoInvestimento || 0);
-        const vidaUtil = customMeta ? customMeta.vidaUtilHoras : ((printer as any).vidaUtilHoras || 5000);
+        const custoInvestimento = customMeta ? customMeta.custoInvestimento : (printer.custoInvestimento || 0);
+        const vidaUtil = customMeta ? customMeta.vidaUtilHoras : (printer.vidaUtilHoras || 5000);
         const depreciacaoH = customMeta ? customMeta.depreciacaoHora : (printer.depreciacaoHora || (vidaUtil > 0 ? custoInvestimento / vidaUtil : 0.50));
 
         return <Card key={printer.id} className="space-y-4 rounded-2xl border-slate-800 bg-slate-900 p-5">

@@ -1,11 +1,12 @@
 import type { User } from '@/types/saas';
 
 // Helper seguro para extrair o valor da role independentemente de vir como string ou objeto
-const getRoleString = (role: any): string => {
+const getRoleString = (role: unknown): string => {
   if (!role) return '';
   if (typeof role === 'string') return role.toLowerCase();
   if (typeof role === 'object') {
-    return String(role.name || role.slug || role.title || '').toLowerCase();
+    const roleObj = role as Record<string, unknown>;
+    return String(roleObj.name || roleObj.slug || roleObj.title || '').toLowerCase();
   }
   return '';
 };

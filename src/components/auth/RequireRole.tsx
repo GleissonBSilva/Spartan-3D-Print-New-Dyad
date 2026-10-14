@@ -22,13 +22,17 @@ export const RequireRole: React.FC<{ roles: Array<'admin' | 'client' | 'manager'
   if (typeof rawRole === 'string') {
     userRole = rawRole;
   } else if (rawRole && typeof rawRole === 'object') {
-    userRole = String((rawRole as any).name || (rawRole as any).slug || '');
+    const roleObj = rawRole as Record<string, unknown>;
+    userRole = String(roleObj.name || roleObj.slug || '');
   }
 
-  const allowed = (roles.includes('admin') && canAccessAdmin(user)) || roles.includes(userRole as any);
+  const isAdmin = canAccessAdmin(user);
+  // Admins e desenvolvedores têm acesso irrestrito tanto ao admin quanto à farm (/cliente).
+  // Usuários comuns acessam as rotas autorizadas para seu perfil.
+  const allowed = isAdmin || roles.includes(userRole as 'admin' | 'client' | 'manager');
   
   if (!allowed) {
-    return <Navigate to={canAccessAdmin(user) && userRole === 'admin' ? '/admin' : '/cliente'} replace />;
+    return <Navigate to={isAdmin ? '/admin' : '/cliente'} replace />;
   }
 
   return <>{children}</>;

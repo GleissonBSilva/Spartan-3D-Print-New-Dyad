@@ -32,6 +32,8 @@ export interface SaaSDataContextType {
   consumirMultiplosFilamentos: (materials: ProjectMaterial[]) => void;
   estornarMultiplosFilamentos: (materials: ProjectMaterial[]) => void;
   addImpressora: (imp: Omit<Impressora3D, 'id'>) => boolean;
+  updateImpressora: (id: string, imp: Partial<Impressora3D>) => Promise<boolean>;
+  deleteImpressora: (id: string) => Promise<boolean>;
   updateImpressoraStatus: (id: string, status: Impressora3D['status'], meta?: { projetoId?: string; projetoNome?: string }) => void;
   updatePrinterProgress: (id: string, progress: number) => Promise<boolean>;
   recordMaintenance: (id: string, tasks: string[], note: string) => Promise<boolean>;
@@ -94,6 +96,8 @@ export const SaaSDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const {
     impressoras,
     addImpressora,
+    updateImpressora,
+    deleteImpressora,
     updateImpressoraStatus,
     updatePrinterProgress,
     recordMaintenance,
@@ -197,6 +201,8 @@ export const SaaSDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         consumirMultiplosFilamentos,
         estornarMultiplosFilamentos,
         addImpressora,
+        updateImpressora,
+        deleteImpressora,
         updateImpressoraStatus,
         updatePrinterProgress,
         recordMaintenance,

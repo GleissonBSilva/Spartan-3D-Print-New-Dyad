@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -63,7 +63,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         if (bg) setBgImage(bg); else setBgImage('');
         if (op) setBgOpacity(Number(op));
         if (bl) setBgBlur(Number(bl));
-      } catch (e) {}
+      } catch (e) {
+        console.error('Erro ao ler papel de parede no DashboardLayout:', e);
+      }
     };
 
     loadWallpaper();

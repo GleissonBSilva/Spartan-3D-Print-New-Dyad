@@ -67,7 +67,7 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
       `Condições: 50% de sinal para início da produção (não reembolsável para insumos/setup).\n` +
       `Validade: 7 dias úteis`
     );
-    window.open(`https://wa.me/${phoneDigits || ''}?text=${text}`, '_blank', 'noopener,noreferrer');
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener,noreferrer');
     toast.success('Proposta preparada para compartilhar pelo WhatsApp.');
   };
 

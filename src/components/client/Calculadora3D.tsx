@@ -18,40 +18,8 @@ import { toast } from 'sonner';
 import { uploadModelFile } from '@/services/fileService';
 import { useAuth } from '@/context/AuthContext';
 
-// Função para converter formato HHMM ou string/número para horas decimais reais
-const parseTimeStringToDecimal = (val: string | number): number => {
-  if (typeof val === 'number') {
-    const hours = Math.floor(val);
-    const fractionalPart = Number((val - hours).toFixed(2));
-    const minutes = Math.round(fractionalPart * 100);
-    return hours + (minutes / 60);
-  }
-  
-  if (!val) return 0;
-  
-  const clean = String(val).replace(',', '.');
-  const parts = clean.split('.');
-  
-  if (parts.length > 1) {
-    const hours = parseInt(parts[0], 10) || 0;
-    const minutesStr = (parts[1] + '0').slice(0, 2); 
-    const minutes = parseInt(minutesStr, 10) || 0;
-    return hours + (minutes / 60);
-  }
-  
-  const num = Number(clean);
-  return isNaN(num) ? 0 : num;
-};
-
-// Conversão correta de horas decimais para formato legível (ex: 18 = 18h00m00s, 1.5 = 1h30m00s)
-const formatHours = (decimalHours: number) => {
-  const safeValue = Math.max(0, decimalHours);
-  const hours = Math.floor(safeValue);
-  const minutes = Math.round((safeValue - hours) * 60);
-  const seconds = 0;
-
-  return `${hours}h${String(minutes).padStart(2, '0')}m${String(seconds).padStart(2, '0')}s`;
-};
+const parseTimeStringToDecimal = PricingService.parseTimeToDecimal;
+const formatHours = PricingService.formatHours;
 
 export const Calculadora3D: React.FC = () => {
   const location = useLocation();
@@ -70,12 +38,12 @@ export const Calculadora3D: React.FC = () => {
   const [observacoes] = useState(sourceProject?.observacoes || '');
 
   // Escala, Comercial e Extras (Com suporte a string para permitir apagar livremente)
-  const [quantidadeLote, setQuantidadeLote] = useState<number | string>((sourceProject as any)?.quantidadeLote ?? 1);
-  const [modoVenda, setModoVenda] = useState<string>((sourceProject as any)?.modoVenda ?? 'varejo');
-  const [descontoAtacado, setDescontoAtacado] = useState<number | string>((sourceProject as any)?.descontoAtacado ?? 13);
-  const [custoEmbalagem, setCustoEmbalagem] = useState<number | string>((sourceProject as any)?.custoEmbalagem ?? 3.00);
-  const [custoBrinde, setCustoBrinde] = useState<number | string>((sourceProject as any)?.custoBrinde ?? 2.00);
-  const [valorFrete, setValorFrete] = useState<number | string>((sourceProject as any)?.valorFrete ?? 0.00);
+  const [quantidadeLote, setQuantidadeLote] = useState<number | string>(sourceProject?.quantidadeLote ?? sourceProject?.quantidade ?? 1);
+  const [modoVenda, setModoVenda] = useState<string>(sourceProject?.modoVenda ?? 'varejo');
+  const [descontoAtacado, setDescontoAtacado] = useState<number | string>(sourceProject?.descontoAtacado ?? 13);
+  const [custoEmbalagem, setCustoEmbalagem] = useState<number | string>(sourceProject?.custoEmbalagem ?? 3.00);
+  const [custoBrinde, setCustoBrinde] = useState<number | string>(sourceProject?.custoBrinde ?? 2.00);
+  const [valorFrete, setValorFrete] = useState<number | string>(sourceProject?.valorFrete ?? 0.00);
 
   // Parâmetros Financeiros e Operacionais
   const [tarifaKwh, setTarifaKwh] = useState(0.85);
@@ -231,7 +199,7 @@ export const Calculadora3D: React.FC = () => {
   };
 
   // Atualizar campo de um material
-  const handleUpdateMaterial = (matId: string, field: 'materialId' | 'weightGrams', value: any) => {
+  const handleUpdateMaterial = (matId: string, field: 'materialId' | 'weightGrams', value: string | number) => {
     setMaterials(prev =>
       prev.map(m => {
         if (m.id === matId) {
@@ -331,6 +299,7 @@ export const Calculadora3D: React.FC = () => {
         observacoes,
         arquivoPath: uploadedFilePath || sourceProject?.arquivoPath,
         imagemPath: imagePath || sourceProject?.imagemPath,
+        quantidade: quantidadeLote === '' ? 1 : Number(quantidadeLote) || 1,
         quantidadeLote: quantidadeLote === '' ? 1 : Number(quantidadeLote) || 1,
         modoVenda,
         descontoAtacado: descontoAtacado === '' ? 0 : Number(descontoAtacado) || 0,

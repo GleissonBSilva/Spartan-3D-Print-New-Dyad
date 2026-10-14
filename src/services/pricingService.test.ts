@@ -18,4 +18,31 @@ describe('PricingService', () => {
     expect(result.totalProductionCost).toBe(19.7);
     expect(result.suggestedPrice).toBe(39.4);
   });
+
+  it('parses diverse time inputs to decimal hours accurately', () => {
+    // Decimal numbers
+    expect(PricingService.parseTimeToDecimal(1.5)).toBe(1.5);
+    expect(PricingService.parseTimeToDecimal('1.5')).toBe(1.5);
+    expect(PricingService.parseTimeToDecimal('1,5')).toBe(1.5);
+    expect(PricingService.parseTimeToDecimal(2)).toBe(2);
+
+    // HH:MM and HH:MM:SS format
+    expect(PricingService.parseTimeToDecimal('01:30')).toBe(1.5);
+    expect(PricingService.parseTimeToDecimal('02:45:00')).toBe(2.75);
+
+    // Xh Ym format
+    expect(PricingService.parseTimeToDecimal('1h30m')).toBe(1.5);
+    expect(PricingService.parseTimeToDecimal('2h')).toBe(2);
+    expect(PricingService.parseTimeToDecimal('45m')).toBe(0.75);
+
+    // Edge cases
+    expect(PricingService.parseTimeToDecimal('')).toBe(0);
+    expect(PricingService.parseTimeToDecimal('invalid')).toBe(0);
+  });
+
+  it('formats decimal hours to standard readable string', () => {
+    expect(PricingService.formatHours(1.5)).toBe('1h30m00s');
+    expect(PricingService.formatHours(2)).toBe('2h00m00s');
+    expect(PricingService.formatHours(0.75)).toBe('0h45m00s');
+  });
 });

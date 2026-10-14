@@ -90,12 +90,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadUser]);
 
   useEffect(() => {
-    if (!user || !supabase) return;
-    const channel = supabase.channel(`profile-${user.id}`).on('postgres_changes', {
-      event: 'UPDATE', schema: 'public', table: 'spartan_profiles', filter: `id=eq.${user.id}`,
+    const userId = user?.id;
+    if (!userId || !supabase) return;
+    const channel = supabase.channel(`profile-${userId}`).on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'spartan_profiles', filter: `id=eq.${userId}`,
     }, event => {
       const profile = event.new as Record<string, unknown>;
-      void supabase!.from('spartan_platform_access').select('access_role').eq('user_id', user.id).then(({ data, error }) => {
+      void supabase!.from('spartan_platform_access').select('access_role').eq('user_id', userId).then(({ data, error }) => {
         if (error) console.warn('Platform access roles could not be refreshed.', error.message);
         const platformRoles = error ? undefined : (data || []).map(row => row.access_role).filter((role): role is PlatformRole => role === 'admin' || role === 'developer');
         setUser(previous => previous ? mapUser({

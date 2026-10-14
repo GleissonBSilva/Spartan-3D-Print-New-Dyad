@@ -130,7 +130,7 @@ export const ClientPortal: React.FC = () => {
     const healthScore = Math.max(0, 100 - impressoras.filter(printer => printer.status === 'desconectada').length * 20 - impressoras.filter(printer => printer.status === 'manutencao').length * 15 - lowStock.length * 10 - overdueProjects.length * 15 - maintenanceDue.length * 10 - failureEvents.length * 5);
     const healthLabel = healthScore >= 80 ? 'Saudável' : healthScore >= 50 ? 'Atenção' : 'Crítico';
     return { capacityHours, completedHours, occupancy, printerUtilization, failureEvents, overdueProjects, upcomingDeliveries, maintenanceDue, materialKg, healthScore, healthLabel };
-  }, [customEnd, customPeriod, customStart, historicoImpressoras, impressoras, lowStock.length, maintenanceDueNow, overview.hours, overview.materials, overdueProjectsNow, period, projetos, todayKey]);
+  }, [customEnd, customPeriod, customStart, historicoImpressoras, impressoras, lowStock.length, maintenanceDueNow, overview.materials, overdueProjectsNow, period, projetos, todayKey]);
 
   return <DashboardLayout title={title} subtitle={`Estúdio: ${user?.companyName || 'Minha farm'} · Plano: ${currentPlan.name}`} badgeText={currentPlan.badge || 'MAKER ATIVO'}>
     {isOverview && <div className="mx-auto max-w-6xl space-y-6">

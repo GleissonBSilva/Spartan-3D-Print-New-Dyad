@@ -12,7 +12,7 @@ interface MultiMaterialSelectorProps {
   filamentos: FilamentoEstoque[];
   onAddMaterial: () => void;
   onRemoveMaterial: (matId: string) => void;
-  onUpdateMaterial: (matId: string, field: 'materialId' | 'weightGrams', value: any) => void;
+  onUpdateMaterial: (matId: string, field: 'materialId' | 'weightGrams', value: string | number) => void;
 }
 
 export const MultiMaterialSelector: React.FC<MultiMaterialSelectorProps> = ({

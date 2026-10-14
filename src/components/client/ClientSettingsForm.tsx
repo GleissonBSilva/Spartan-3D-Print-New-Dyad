@@ -37,7 +37,9 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
       if (savedBg) setBgImage(savedBg);
       if (savedOpacity) setBgOpacity(Number(savedOpacity));
       if (savedBlur) setBgBlur(Number(savedBlur));
-    } catch (e) {}
+    } catch (e) {
+      console.error('Erro ao carregar configurações de papel de parede do localStorage:', e);
+    }
   }, []);
 
   const handleWallpaperUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

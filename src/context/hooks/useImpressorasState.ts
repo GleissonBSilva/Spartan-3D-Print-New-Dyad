@@ -91,5 +91,50 @@ export function useImpressorasState(currentPlan: Plan) {
     return true;
   };
 
-  return { impressoras, historicoImpressoras, addImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance, refreshImpressoras };
+  const updateImpressora = async (id: string, imp: Partial<Impressora3D>): Promise<boolean> => {
+    if (!user?.companyId || !supabase) { toast.error('Entre na conta para editar a impressora.'); return false; }
+    try {
+      const updateData: Record<string, unknown> = {};
+      if (imp.nome !== undefined) updateData.name = imp.nome;
+      if (imp.modelo !== undefined) updateData.model = imp.modelo;
+      if (imp.potenciaWatts !== undefined) updateData.power_watts = imp.potenciaWatts;
+      if (imp.bicoMm !== undefined) updateData.nozzle_mm = imp.bicoMm;
+      if (imp.intervaloManutencaoHoras !== undefined) updateData.maintenance_interval_hours = imp.intervaloManutencaoHoras;
+
+      const { data, error } = await supabase.from('spartan_printers')
+        .update(updateData)
+        .eq('id', id)
+        .eq('company_id', user.companyId)
+        .select('*')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setImpressoras(prev => prev.map(p => p.id === id ? fromRow(data as PrinterRow) : p));
+      }
+      return true;
+    } catch (error) {
+      toast.error(`Falha ao atualizar impressora: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+      return false;
+    }
+  };
+
+  const deleteImpressora = async (id: string): Promise<boolean> => {
+    if (!user?.companyId || !supabase) { toast.error('Entre na conta para excluir a impressora.'); return false; }
+    try {
+      const { error } = await supabase.from('spartan_printers')
+        .delete()
+        .eq('id', id)
+        .eq('company_id', user.companyId);
+
+      if (error) throw error;
+      setImpressoras(prev => prev.filter(p => p.id !== id));
+      return true;
+    } catch (error) {
+      toast.error(`Falha ao excluir impressora: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+      return false;
+    }
+  };
+
+  return { impressoras, historicoImpressoras, addImpressora, updateImpressora, deleteImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance, refreshImpressoras };
 }
