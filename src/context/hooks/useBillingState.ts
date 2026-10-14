@@ -94,6 +94,10 @@ export function useBillingState() {
     }).catch(error => toast.error(`Não foi possível abrir o pagamento: ${error.message}`));
   };
 
+  const payInvoice = (invoiceId: string) => {
+    openInvoiceCheckout(invoiceId);
+  };
+
   const confirmInvoicePayment = async (invoiceId: string) => {
     if (!supabase) return;
     try {
