@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Bot, Thermometer, Copy, Check, RotateCcw, Loader2 } from 'lucide-react';
+import { Sparkles, Bot, Thermometer, Copy, Check, RotateCcw, Loader2, Settings2, Key, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { AiDiagnosticService } from '@/services/aiDiagnosticService';
@@ -18,6 +18,9 @@ export const SpartanAiAssistant: React.FC = () => {
   const [modeloUsado, setModeloUsado] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [configModal, setConfigModal] = useState(false);
+  const [customKey, setCustomKey] = useState(AiDiagnosticService.getCustomApiKey());
+  const [customProvider, setCustomProvider] = useState<'groq' | 'openai'>(AiDiagnosticService.getCustomProvider());
 
   const sugestoes = [
     { cat: 'falha', text: 'Minha peça em PETG está apresentando stringing (fiapos) excessivo. Como calibrar no OrcaSlicer?' },
@@ -25,6 +28,13 @@ export const SpartanAiAssistant: React.FC = () => {
     { cat: 'material', text: 'Quais as melhores configurações de retração e velocidade para imprimir TPU 95A?' },
     { cat: 'orcamento', text: 'Como precificar uma peça de 250g em PLA que demora 12h de máquina para uma empresa B2B?' },
   ];
+
+  const handleSalvarChave = (e: React.FormEvent) => {
+    e.preventDefault();
+    AiDiagnosticService.saveCustomAiConfig(customKey, customProvider);
+    setConfigModal(false);
+    toast.success(customKey.trim() ? 'Chave de IA configurada com sucesso!' : 'Configuração de IA restaurada para o motor nativo.');
+  };
 
   const handleEnviar = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -36,13 +46,13 @@ export const SpartanAiAssistant: React.FC = () => {
       const result = await AiDiagnosticService.askAssistant(query);
       setResposta(result.answer);
       setModeloUsado(result.model);
-      toast.success('Diagnóstico 3D gerado com sucesso!');
+      toast.success('Diagnóstico gerado com sucesso!');
     } catch (error) {
-      console.warn('Falha no canal remoto, ativando motor de diagnóstico técnico Spartan 3D:', error);
+      console.warn('Falha na consulta, ativando motor de diagnóstico técnico Spartan 3D:', error);
       const fallback = AiDiagnosticService.getExpertAnswer(query);
       setResposta(fallback);
       setModeloUsado('spartan-3d-expert-engine');
-      toast.success('Diagnóstico 3D gerado com sucesso!');
+      toast.success('Diagnóstico gerado com sucesso!');
     } finally { 
       setCarregando(false); 
     }
@@ -61,11 +71,13 @@ export const SpartanAiAssistant: React.FC = () => {
     setModeloUsado(null);
   };
 
+  const hasCustomKey = Boolean(customKey.trim());
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <Card className="lg:col-span-2 bg-slate-900 border-slate-800 rounded-2xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-md">
                 <Bot className="w-5 h-5" />
@@ -79,9 +91,21 @@ export const SpartanAiAssistant: React.FC = () => {
                 </CardDescription>
               </div>
             </div>
-            <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
-              IA via Supabase
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setConfigModal(true)}
+                className="bg-slate-950 border-slate-700 hover:border-indigo-500 text-indigo-300 hover:text-white text-xs h-8 rounded-xl px-2.5"
+              >
+                <Key className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                {hasCustomKey ? 'IA Conectada' : 'Configurar Chave IA'}
+              </Button>
+              <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
+                {hasCustomKey ? `${customProvider.toUpperCase()} Ativo` : 'Motor Especialista 3D'}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
 
@@ -261,6 +285,108 @@ export const SpartanAiAssistant: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* MODAL: CONFIGURAÇÃO DE CHAVE IA (GROQ / OPENAI) */}
+      {configModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={e => {
+            if (e.target === e.currentTarget) setConfigModal(false);
+          }}
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-white text-sm">Conectar Provedor de IA</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfigModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              O Spartan 3D já possui um motor técnico especialista nativo para dúvidas de impressão 3D. 
+              Para conversar com modelos de linguagem completos e ilimitados (*como Llama-3.3-70B grátis via Groq*), informe sua chave abaixo:
+            </p>
+
+            <form onSubmit={handleSalvarChave} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Provedor de Inteligência Artificial
+                </label>
+                <select
+                  value={customProvider}
+                  onChange={e => setCustomProvider(e.target.value as 'groq' | 'openai')}
+                  className="w-full bg-slate-950 border border-slate-750 text-white rounded-xl h-10 px-3 text-xs focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="groq">Groq Cloud (Recomendado — Grátis & Ultra Rápido)</option>
+                  <option value="openai">OpenAI (ChatGPT / GPT-4o-mini)</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {customProvider === 'groq' 
+                    ? 'Obtenha uma chave gratuita em console.groq.com (sem cartão de crédito).'
+                    : 'Requer chave da plataforma platform.openai.com.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Chave de API (API Key)
+                </label>
+                <input
+                  type="password"
+                  value={customKey}
+                  onChange={e => setCustomKey(e.target.value)}
+                  placeholder={customProvider === 'groq' ? 'gsk_...' : 'sk-...'}
+                  className="w-full bg-slate-950 border border-slate-750 text-white rounded-xl h-10 px-3 text-xs font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                {hasCustomKey && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCustomKey('');
+                      AiDiagnosticService.saveCustomAiConfig('', 'groq');
+                      setConfigModal(false);
+                      toast.success('Chave removida. Usando motor especialista Spartan.');
+                    }}
+                    className="text-rose-400 hover:text-rose-300 text-xs hover:bg-rose-950/30"
+                  >
+                    Remover Chave
+                  </Button>
+                )}
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfigModal(false)}
+                    className="border-slate-700 bg-slate-950 text-slate-300 text-xs rounded-xl"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl px-4"
+                  >
+                    Salvar Conexão
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -8,18 +8,43 @@ import { supabase } from '@/lib/supabase';
 export interface AiDiagnosticResult {
   answer: string;
   model: string;
-  source: 'supabase_edge' | 'spartan_expert_engine';
+  source: 'supabase_edge' | 'direct_llm' | 'spartan_expert_engine';
 }
+
+const CUSTOM_AI_KEY_STORAGE = 'spartan_custom_ai_key';
+const CUSTOM_AI_PROVIDER_STORAGE = 'spartan_custom_ai_provider';
 
 export class AiDiagnosticService {
   /**
+   * Obtém chave personalizada configurada pelo usuário (Groq, OpenAI, etc.)
+   */
+  public static getCustomApiKey(): string {
+    return localStorage.getItem(CUSTOM_AI_KEY_STORAGE)?.trim() || '';
+  }
+
+  public static getCustomProvider(): 'groq' | 'openai' {
+    const p = localStorage.getItem(CUSTOM_AI_PROVIDER_STORAGE);
+    return p === 'openai' ? 'openai' : 'groq';
+  }
+
+  public static saveCustomAiConfig(key: string, provider: 'groq' | 'openai'): void {
+    if (key.trim()) {
+      localStorage.setItem(CUSTOM_AI_KEY_STORAGE, key.trim());
+      localStorage.setItem(CUSTOM_AI_PROVIDER_STORAGE, provider);
+    } else {
+      localStorage.removeItem(CUSTOM_AI_KEY_STORAGE);
+      localStorage.removeItem(CUSTOM_AI_PROVIDER_STORAGE);
+    }
+  }
+
+  /**
    * Normaliza termos técnicos, gírias e erros comuns de digitação em impressão 3D
    */
-  private static normalizeQuestion(raw: string): string {
+  public static normalizeQuestion(raw: string): string {
     return raw
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // remove acentos para busca robusta
+      .replace(/[\u0300-\u036f]/g, '') // remove acentos
       .replace(/pteg/g, 'petg')
       .replace(/pétg/g, 'petg')
       .replace(/pla\+/g, 'pla plus')
@@ -35,10 +60,71 @@ export class AiDiagnosticService {
   }
 
   /**
+   * Valida se a pergunta está relacionada ao ecossistema de manufatura aditiva, impressão 3D ou farms
+   */
+  public static isRelevant3DTopic(question: string): boolean {
+    const q = this.normalizeQuestion(question);
+
+    const keywords = [
+      // Materiais e Polímeros
+      'pla', 'petg', 'abs', 'asa', 'tpu', 'nylon', 'resina', 'resinas', 'pc', 'policarbonato',
+      'pvb', 'pva', 'hips', 'carbono', 'wood', 'madeira', 'silk', 'filamento', 'filamentos',
+      'carretel', 'bobina', 'polimero', 'material', 'materiais',
+      // Termos de Impressão e Fatiamento
+      'impressora', 'impressoras', 'impressao', 'imprimir', 'fatiador', 'fatiamento', 'fatiar',
+      'orca', 'cura', 'bambu', 'prusa', 'creality', 'ender', 'k1', 'voron', 'klipper', 'marlin',
+      'gcode', 'stl', '3mf', 'cad', 'cam',
+      // Hardware e Componentes
+      'bico', 'nozzle', 'hotend', 'heatbreak', 'garganta', 'dissipador', 'bloco', 'mesa', 'bed',
+      'chapa', 'pei', 'extrusor', 'extrusora', 'direct drive', 'bowden', 'eixo', 'correia',
+      'motor', 'nivelamento', 'bltouch', 'sensor',
+      // Falhas e Parâmetros Operacionais
+      'stringing', 'fiapo', 'fiapos', 'teia', 'teias', 'warping', 'descol', 'empen', 'delamin',
+      'entup', 'clog', 'clogging', 'cold pull', 'subextrus', 'superextrus', 'z-hop', 'retra',
+      'camada', 'primeira camada', 'z-offset', 'brim', 'skirt', 'raft', 'infill', 'preenchimento',
+      'gyroid', 'parede', 'paredes', 'perimetro', 'suporte', 'suportes', 'velocidade', 'aceleracao',
+      'resfriamento', 'ventoinha', 'fan', 'temperatura', 'fluxo', 'flow rate', 'pressure advance',
+      'linear advance', 'input shaping',
+      // Negócio e Gestão de Farm
+      'farm', 'orcamento', 'precific', 'cobrar', 'preco', 'custo', 'mrr', 'manutencao', 'producao',
+    ];
+
+    return keywords.some(k => q.includes(k));
+  }
+
+  /**
+   * Resposta para perguntas fora do escopo de impressão 3D
+   */
+  public static getOutOfScopeResponse(question: string): string {
+    return `### ⚠️ Consulta Fora do Escopo de Manufatura Aditiva 3D
+
+Identifiquei que sua pergunta:
+> **"${question}"**
+
+não se refere a **impressão 3D, fatiamento, polímeros ou gestão de farms**.
+
+---
+
+#### 🎯 Em que o Spartan 3D Copilot é especializado:
+1. **Engenharia de Materiais:** Compatibilidade, temperaturas e secagem de **PLA, PETG, ABS, ASA, TPU, Nylon, Resinas e Compósitos**.
+2. **Resolução de Falhas Críticas:** Correção de *warping* (descolamento), *stringing* (fiapos/teias), entupimentos (*clogging*), delaminação entre camadas e calibração de Z-offset.
+3. **Parâmetros de Fatiamento:** Perfis otimizados para **OrcaSlicer, Bambu Studio, Ultimaker Cura e PrusaSlicer**.
+4. **Hardware & Firmwares:** Otimização de Klipper (*Input Shaping e Pressure Advance*), sistemas Direct Drive vs Bowden e bicos especiais (*0.2mm a 0.8mm em aço endurecido*).
+5. **Comercial & Farm:** Precificação de peças, cálculo de consumo de filamento, depreciação de máquinas e estimativa de lucro por lote.
+
+💡 *Por favor, digite uma dúvida técnica sobre sua impressora, material ou projeto de impressão 3D!*`;
+  }
+
+  /**
    * Gera resposta técnica especializada diretamente baseada no assunto perguntado
    */
   public static getExpertAnswer(question: string): string {
     const q = this.normalizeQuestion(question);
+
+    // Validação de Escopo: se não for sobre 3D, não gera resposta alucinatória
+    if (!this.isRelevant3DTopic(question)) {
+      return this.getOutOfScopeResponse(question);
+    }
 
     // 1. Misturar Filamentos: PLA com PETG / Suportes Multimateriais
     if (
@@ -203,7 +289,73 @@ Filamentos flexíveis possuem comportamento viscoelástico: eles dobram e escapa
 * Se for usar filamentos com partículas abrasivas (*Madeira, Fibra de Carbono, Glow in the dark*), utilize **bico endurecido de no mínimo \`0.6 mm\`** para evitar entupimento imediato.`;
     }
 
-    // 6. Adesão de Primeira Camada e Calibração de Z-Offset
+    // 6. Direct Drive vs Bowden
+    if (q.includes('direct drive') || q.includes('bowden')) {
+      return `### ⚙️ Comparativo Técnico: Extrusor Direct Drive vs Sistema Bowden
+
+---
+
+#### 1. Direct Drive (Motor montado no cabeçote de impressão)
+* **Vantagens:**
+  * Caminho de extrusão curto (< 30 mm), permitindo imprimir **TPU e filamentos flexíveis com perfeição**.
+  * Retrações ultra-baixas (**\`0.6 mm a 1.2 mm\`**), reduzindo quase a zero o risco de stringing.
+  * Resposta instantânea de controle de fluxo (*Pressure Advance / Linear Advance*).
+* **Desvantagens:**
+  * Maior massa em movimento no eixo X, exigindo acelerações menores em impressoras do tipo *bed slinger* para evitar *ghosting*.
+
+---
+
+#### 2. Bowden (Motor fixo na estrutura, com tubo PTFE até o hotend)
+* **Vantagens:**
+  * Cabeçote de impressão extremamente leve, permitindo velocidades de movimentação muito altas sem vibrar a estrutura.
+* **Desvantagens:**
+  * Retrações longas (**\`4.0 mm a 6.0 mm\`**), aumentando o tempo de impressão e a chance de entupimento por histerese no tubo PTFE.
+  * Dificuldade severa para tracionar filamentos flexíveis (TPU 85A/95A tendem a enrugar dentro do tubo).`;
+    }
+
+    // 7. Klipper: Input Shaping e Pressure Advance
+    if (q.includes('klipper') || q.includes('input shaping') || q.includes('pressure advance')) {
+      return `### ⚡ Guia de Calibração: Klipper (Input Shaping & Pressure Advance)
+
+---
+
+#### 1. Input Shaping (Eliminação de Ressonância / Ghosting)
+* **Objetivo:** Neutralizar as frequências de ressonância mecânica dos eixos X e Y sem precisar reduzir a aceleração.
+* **Procedimento:**
+  1. Conecte um acelerômetro ADXL345 ao cabeçote e execute \`SHAPER_CALIBRATE\`.
+  2. Caso calibre manualmente via teste de ressonância (\`TEST_RESONANCES AXIS=X\`), meça a distância entre as ondulações para calcular a frequência em Hz.
+  3. Algoritmo recomendado: **\`mzv\`** para sistemas leves ou **\`ei\`** para mesas mais pesadas.
+
+---
+
+#### 2. Pressure Advance (Compensação de Pressão do Bico)
+* **Objetivo:** Evitar cantos arredondados ou abaulados e eliminar excesso de material no início/fim de cada linha.
+* **Valores Típicos:**
+  * **Direct Drive:** \`0.02\` a \`0.05 s\`.
+  * **Bowden:** \`0.30\` a \`0.70 s\`.
+* Execute o script de torre de calibração \`TUNING_TOWER COMMAND=SET_PRESSURE_ADVANCE PARAMETER=ADVANCE START=0 FACTOR=.005\`.`;
+    }
+
+    // 8. Bicos: Diâmetro e Materiais (0.2, 0.4, 0.6, Aço Endurecido)
+    if (q.includes('bico') || q.includes('nozzle') || q.includes('0.2') || q.includes('0.6') || q.includes('endurecido')) {
+      return `### 🔍 Guia de Seleção de Bicos (Nozzles) para Manufatura 3D
+
+---
+
+#### 1. Diâmetros Recomendados por Aplicação
+* **0.2 mm (Miniaturas & Detalhes Extremos):** Ideal para peças de RPG, joalheria ou textos menores que 5mm. Altura de camada recomendada: \`0.06 mm a 0.12 mm\`.
+* **0.4 mm (Padrão da Indústria):** O equilíbrio perfeito entre tempo de impressão, resolução e facilidade de calibração. Altura de camada: \`0.12 mm a 0.28 mm\`.
+* **0.6 mm (Produção Rápida & Resistência Mecânica):** Reduz o tempo de impressão em **35% a 50%**. Essencial para filamentos com fibras (Carbono, Madeira) para evitar entupimento.
+
+---
+
+#### 2. Materiais do Bico
+* **Latão (Brass):** Melhor condutividade térmica, ideal para filamentos convencionais (PLA, PETG, ABS). Desgasta rapidamente com filamentos abrasivos.
+* **Aço Endurecido (Hardened Steel):** Indispensável para Fibra de Carbono, Glow in the Dark, Madeira e Filamentos com Metal. *Dica:* Aumente a temperatura em \`+5°C\` devido à menor condutividade térmica do aço.
+* **Bimetálico / CHT:** Núcleo de cobre de alta transferência de calor com ponta endurecida, excelente para fluxos volumétricos acima de 25 mm³/s.`;
+    }
+
+    // 9. Adesão de Primeira Camada e Calibração de Z-Offset
     if (
       q.includes('adesao') ||
       q.includes('primeira camada') ||
@@ -228,7 +380,7 @@ Filamentos flexíveis possuem comportamento viscoelástico: eles dobram e escapa
 * Seque com papel toalha e finalize borrifando **álcool isopropílico 99%** antes de iniciar o aquecimento.`;
     }
 
-    // 7. Precificação e Custos 3D para Clientes e B2B
+    // 10. Precificação e Custos 3D para Clientes e B2B
     if (
       q.includes('precific') ||
       q.includes('orcamento') ||
@@ -255,28 +407,73 @@ Para garantir rentabilidade real sem surpresas no fluxo de caixa, utilize a comp
 * Ofereça opções claras de pagamento: **5% de desconto no Pix à vista** e parcelamento no cartão com sinal de 50% para reserva de maquinário e início de produção.`;
     }
 
-    // 8. Resposta Inteligente e Contextual para Qualquer Outra Dúvida 3D
-    return `### 💡 Diagnóstico Técnico Especializado Spartan 3D
+    // 11. Resposta Técnica Geral para outros tópicos genuínos de impressão 3D
+    return `### 💡 Solução Especializada Spartan 3D
 
-Para a sua consulta:
+Para a sua consulta técnica:
 > **"${question}"**
 
 ---
 
 #### 1. Parâmetros Operacionais Recomendados
-* **Calibração de Fluxo e Temperatura:** Ajuste a temperatura do bico conforme o polímero utilizado (PLA: \`200-215°C\`, PETG: \`230-245°C\`, ABS: \`245-255°C\`, TPU: \`220-230°C\`). Aumente de 5°C a 10°C caso imprima em velocidades superiores a 150 mm/s.
-* **Perímetros e Preenchimento:** Para máxima resistência mecânica isotrópica, utilize no mínimo **3 a 4 paredes (1.2 - 1.6 mm)** e preenchimento estrutural **Gyroid** de 15% a 25%.
-* **Velocidade e Aceleração:** Mantenha paredes externas a 40-60 mm/s para acabamento brilhante e dimensionalmente exato, deixando velocidades maiores para o infill e paredes internas.
+* **Temperatura e Fluidez:** Certifique-se de que a temperatura do bico esteja calibrada para a velocidade de fluxo volumétrico (\`mm³/s\`) da sua impressora. Impressões de alta velocidade (acima de 150 mm/s) exigem de 5°C a 10°C a mais no bico para fusão completa.
+* **Resfriamento e Aderência:** Mantenha a primeira camada impressa mais quente e sem ventilação para ancoragem perfeita.
+* **Paredes e Perímetros:** Utilize no mínimo 3 paredes (\`1.2 mm\` em bico 0.4) para obter integridade mecânica isotrópica e estanqueidade.
 
 ---
 
-#### 2. Procedimento de Teste & Validação
-* Execute um teste rápido de calibração (*calicat ou cubo de calibração 20x20mm*) para validar a retração e o dimensional antes de rodar o trabalho final.
-* Verifique se as guias lineares e eixos Z estão limpos e lubrificados para evitar artefatos de Z-banding ou ghosting na peça.`;
+#### 2. Validação Rápida
+* Execute uma torre de temperatura (*Temp Tower*) para encontrar a zona ideal de brilho e resistência do filamento.
+* Limpe e lubrifique as guias com graxa de lítio ou óleo PTFE a cada 200h para evitar perda de passos.`;
   }
 
   /**
-   * Consulta a IA via Supabase Edge Function com fallback inteligente instantâneo
+   * Tenta chamar diretamente uma API de LLM se o usuário configurou uma chave
+   */
+  private static async queryDirectLlm(
+    question: string,
+    apiKey: string,
+    provider: 'groq' | 'openai'
+  ): Promise<string | null> {
+    const url =
+      provider === 'groq'
+        ? 'https://api.groq.com/openai/v1/chat/completions'
+        : 'https://api.openai.com/v1/chat/completions';
+
+    const model = provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Você é o SPARTAN AI, o copiloto especialista em manufatura aditiva 3D, fatiamento e gestão de farms de impressão 3D. ' +
+              'Responda de forma clara, técnica e objetiva em português do Brasil. ' +
+              'Se a pergunta do usuário não for sobre manufatura aditiva, impressão 3D ou engenharia mecânica/plásticos, ' +
+              'informe educadamente que você é um especialista exclusivo em impressão 3D.',
+          },
+          { role: 'user', content: question },
+        ],
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content?.trim() || null;
+    }
+    return null;
+  }
+
+  /**
+   * Consulta a IA via Supabase Edge Function, Direct LLM (se houver chave) ou Motor Especialista
    */
   public static async askAssistant(question: string): Promise<AiDiagnosticResult> {
     const trimmed = question.trim();
@@ -284,7 +481,28 @@ Para a sua consulta:
       throw new Error('Por favor, digite sua dúvida ou problema técnico.');
     }
 
-    // Tenta primeiro chamar a Edge Function do Supabase
+    // 1. Se o usuário configurou uma chave direta no navegador (ex: Groq grátis ou OpenAI):
+    const customKey = this.getCustomApiKey();
+    if (customKey) {
+      try {
+        const directReply = await this.queryDirectLlm(
+          trimmed,
+          customKey,
+          this.getCustomProvider()
+        );
+        if (directReply) {
+          return {
+            answer: directReply,
+            model: this.getCustomProvider() === 'groq' ? 'groq-llama-3.3-70b' : 'openai-gpt-4o',
+            source: 'direct_llm',
+          };
+        }
+      } catch (err) {
+        console.warn('Erro ao consultar LLM direto:', err);
+      }
+    }
+
+    // 2. Tenta primeiro chamar a Edge Function do Supabase
     try {
       if (supabase) {
         const { data, error } = await supabase.functions.invoke('ai-assistant', {
@@ -293,8 +511,8 @@ Para a sua consulta:
 
         if (!error && data) {
           const rawAnswer = data.answer || data.reply || data.choices?.[0]?.message?.content;
-          
-          // Verifica se a resposta não é a mensagem genérica obsoleta antiga
+
+          // Se a resposta do Edge for válida e não for genérica vazia:
           const isGenericOutdated =
             rawAnswer &&
             rawAnswer.includes('Calibração de Primeira Camada: Verifique o Z-offset executando uma linha de purga') &&
@@ -313,7 +531,7 @@ Para a sua consulta:
       console.warn('Edge Function indisponível ou em fallback, acionando motor técnico Spartan:', err);
     }
 
-    // Fallback garantido: motor técnico especialista local da Spartan 3D
+    // 3. Fallback garantido: motor técnico especialista Spartan 3D com validação de escopo
     const expertAnswer = this.getExpertAnswer(trimmed);
     return {
       answer: expertAnswer,

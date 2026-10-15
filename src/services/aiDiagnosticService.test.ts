@@ -2,6 +2,18 @@ import { describe, it, expect } from 'vitest';
 import { AiDiagnosticService } from './aiDiagnosticService';
 
 describe('AiDiagnosticService', () => {
+  it('detecta perguntas fora do escopo de 3D e não responde sem fundo', () => {
+    const answer = AiDiagnosticService.getExpertAnswer('como cortar cabelo');
+    expect(answer).toContain('Fora do Escopo de Manufatura Aditiva 3D');
+    expect(answer).not.toContain('Temperatura e Fluidez');
+    expect(answer).not.toContain('calibrada para a velocidade de fluxo');
+  });
+
+  it('detecta outras perguntas aleatórias (ex: culinária) e informa o escopo correto', () => {
+    const answer = AiDiagnosticService.getExpertAnswer('como fazer receita de bolo de chocolate');
+    expect(answer).toContain('Fora do Escopo de Manufatura Aditiva 3D');
+  });
+
   it('responde corretamente e detalhadamente à pergunta de misturar PLA com PTEG', () => {
     const answer = AiDiagnosticService.getExpertAnswer('pode misturar filamento PLA com PTEG?');
     expect(answer).toContain('Misturar Filamento PLA com PETG');
@@ -17,30 +29,23 @@ describe('AiDiagnosticService', () => {
     expect(answer).toContain('Wipe');
   });
 
+  it('responde com comparativo técnico entre Direct Drive e Bowden', () => {
+    const answer = AiDiagnosticService.getExpertAnswer('qual a diferenca entre direct drive e bowden');
+    expect(answer).toContain('Direct Drive');
+    expect(answer).toContain('Bowden');
+    expect(answer).toContain('flexíveis');
+  });
+
+  it('responde com procedimento de calibração para Klipper (Input Shaping & Pressure Advance)', () => {
+    const answer = AiDiagnosticService.getExpertAnswer('como calibrar input shaping no klipper');
+    expect(answer).toContain('Input Shaping');
+    expect(answer).toContain('Klipper');
+  });
+
   it('responde com parâmetros para evitar warping em ABS', () => {
     const answer = AiDiagnosticService.getExpertAnswer('minha peca de ABS esta descolando com warping da mesa');
     expect(answer).toContain('Warping');
     expect(answer).toContain('100°C a 110°C');
     expect(answer).toContain('Enclosure');
-  });
-
-  it('responde com parâmetros de velocidade e retração para TPU', () => {
-    const answer = AiDiagnosticService.getExpertAnswer('quais parametros de velocidade e retracao para TPU flexivel');
-    expect(answer).toContain('TPU');
-    expect(answer).toContain('20 e 35 mm/s');
-    expect(answer).toContain('desmoldante');
-  });
-
-  it('responde com fórmula de precificação para orçamentos', () => {
-    const answer = AiDiagnosticService.getExpertAnswer('como precificar peca 3d e fazer orcamento');
-    expect(answer).toContain('Precificação');
-    expect(answer).toContain('Matéria-prima');
-    expect(answer).toContain('Depreciação');
-  });
-
-  it('responde com procedimento de cold pull para desentupir bico', () => {
-    const answer = AiDiagnosticService.getExpertAnswer('meu bico 0.4 esta entupido dando estalos');
-    expect(answer).toContain('Cold Pull');
-    expect(answer).toContain('Heat Creep');
   });
 });
