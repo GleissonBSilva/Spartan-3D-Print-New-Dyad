@@ -645,6 +645,7 @@ export const Calculadora3D: React.FC = () => {
             <PaymentMethodSelector
               selectedMethod={selectedPaymentMethod}
               selectedInstallments={selectedInstallments}
+              paymentResult={paymentResult}
               basePrice={calculationResult.suggestedPrice}
               paymentSettings={paymentSettings}
               onSelectMethod={setSelectedPaymentMethod}

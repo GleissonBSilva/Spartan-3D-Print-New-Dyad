@@ -9,11 +9,11 @@ import {
   QrCode,
   Banknote,
   Settings2,
-  Check,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import {
+  PaymentMethodsService,
   PaymentMethodType,
   FarmPaymentSettings,
   PaymentCalculationResult,
@@ -22,24 +22,45 @@ import { ManagePaymentMethodsModal } from './ManagePaymentMethodsModal';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: PaymentMethodType;
-  onChangeMethod: (method: PaymentMethodType) => void;
   selectedInstallments: number;
-  onChangeInstallments: (installments: number) => void;
-  paymentResult: PaymentCalculationResult;
+  paymentResult?: PaymentCalculationResult;
+  basePrice?: number;
   paymentSettings: FarmPaymentSettings;
-  onRefreshSettings: () => void;
+  onSelectMethod?: (method: PaymentMethodType) => void;
+  onChangeMethod?: (method: PaymentMethodType) => void;
+  onSelectInstallments?: (installments: number) => void;
+  onChangeInstallments?: (installments: number) => void;
+  onUpdateSettings?: (settings: FarmPaymentSettings) => void;
+  onRefreshSettings?: () => void;
 }
 
 export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   selectedMethod,
   onChangeMethod,
+  onSelectMethod,
   selectedInstallments,
   onChangeInstallments,
+  onSelectInstallments,
   paymentResult,
+  basePrice = 0,
   paymentSettings,
   onRefreshSettings,
+  onUpdateSettings,
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
+
+  const handleSelectMethod = onSelectMethod || onChangeMethod || (() => {});
+  const handleSelectInstallments = onSelectInstallments || onChangeInstallments || (() => {});
+
+  // Garante que o resultado do cálculo nunca seja nulo ou indefinido
+  const safePaymentResult: PaymentCalculationResult =
+    paymentResult ||
+    PaymentMethodsService.calculatePaymentEffect(
+      basePrice,
+      selectedMethod,
+      selectedInstallments,
+      paymentSettings
+    );
 
   const methodsList: {
     type: PaymentMethodType;
@@ -53,43 +74,43 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
       type: 'pix',
       label: 'Pix Instantâneo',
       icon: QrCode,
-      badgeText: paymentSettings.methods.pix.discountPercent
+      badgeText: paymentSettings.methods?.pix?.discountPercent
         ? `-${paymentSettings.methods.pix.discountPercent}% OFF`
         : 'À vista',
       badgeTone: 'emerald',
-      enabled: paymentSettings.methods.pix.enabled,
+      enabled: paymentSettings.methods?.pix?.enabled ?? true,
     },
     {
       type: 'credito',
       label: 'Cartão de Crédito',
       icon: CreditCard,
-      badgeText: `Até ${paymentSettings.methods.credito.maxInstallments || 12}x`,
+      badgeText: `Até ${paymentSettings.methods?.credito?.maxInstallments || 12}x`,
       badgeTone: 'indigo',
-      enabled: paymentSettings.methods.credito.enabled,
+      enabled: paymentSettings.methods?.credito?.enabled ?? true,
     },
     {
       type: 'debito',
       label: 'Cartão de Débito',
       icon: CreditCard,
-      badgeText: paymentSettings.methods.debito.feePercent
+      badgeText: paymentSettings.methods?.debito?.feePercent
         ? `Taxa ${paymentSettings.methods.debito.feePercent}%`
         : 'À vista',
       badgeTone: 'cyan',
-      enabled: paymentSettings.methods.debito.enabled,
+      enabled: paymentSettings.methods?.debito?.enabled ?? true,
     },
     {
       type: 'dinheiro',
       label: 'Dinheiro em Espécie',
       icon: Banknote,
-      badgeText: paymentSettings.methods.dinheiro.discountPercent
+      badgeText: paymentSettings.methods?.dinheiro?.discountPercent
         ? `-${paymentSettings.methods.dinheiro.discountPercent}% OFF`
         : 'À vista',
       badgeTone: 'amber',
-      enabled: paymentSettings.methods.dinheiro.enabled,
+      enabled: paymentSettings.methods?.dinheiro?.enabled ?? true,
     },
   ];
 
-  const maxInstallments = paymentSettings.methods.credito.maxInstallments || 12;
+  const maxInstallments = paymentSettings.methods?.credito?.maxInstallments || 12;
   const installmentOptions = Array.from({ length: maxInstallments }, (_, i) => i + 1);
 
   return (
@@ -131,7 +152,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
               key={item.type}
               type="button"
               disabled={!item.enabled}
-              onClick={() => onChangeMethod(item.type)}
+              onClick={() => handleSelectMethod(item.type)}
               className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between min-h-[82px] ${
                 !item.enabled
                   ? 'opacity-40 cursor-not-allowed border-slate-800 bg-slate-950'
@@ -203,11 +224,14 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
 
             <select
               value={selectedInstallments}
-              onChange={e => onChangeInstallments(Number(e.target.value))}
+              onChange={e => handleSelectInstallments(Number(e.target.value))}
               className="bg-slate-900 border border-slate-750 text-white text-xs font-bold rounded-xl h-9 px-3 focus:outline-none focus:border-indigo-500 sm:w-56"
             >
               {installmentOptions.map(n => {
-                const singleVal = paymentResult.finalPrice > 0 ? (paymentResult.finalPrice / n).toFixed(2) : '0.00';
+                const singleVal =
+                  safePaymentResult.finalPrice > 0
+                    ? (safePaymentResult.finalPrice / n).toFixed(2)
+                    : '0.00';
                 return (
                   <option key={n} value={n}>
                     {n}x de R$ {singleVal} {n === 1 ? '(À vista)' : ''}
@@ -223,17 +247,20 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
             <div className="flex items-center gap-2 text-slate-300">
               <QrCode className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>
-                Chave Pix da Farm: <strong className="text-white font-mono">{paymentSettings.pixKey || 'Não configurada'}</strong>
+                Chave Pix da Farm:{' '}
+                <strong className="text-white font-mono">
+                  {paymentSettings.pixKey || 'Não configurada'}
+                </strong>
                 {paymentSettings.pixBeneficiary && (
                   <span className="text-slate-400"> ({paymentSettings.pixBeneficiary})</span>
                 )}
               </span>
             </div>
 
-            {paymentResult.adjustmentAmount < 0 && (
+            {safePaymentResult.adjustmentAmount < 0 && (
               <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[11px] self-start sm:self-auto">
                 <Sparkles className="w-3 h-3 mr-1" />
-                Desconto de R$ {Math.abs(paymentResult.adjustmentAmount).toFixed(2)} aplicado
+                Desconto de R$ {Math.abs(safePaymentResult.adjustmentAmount).toFixed(2)} aplicado
               </Badge>
             )}
           </div>
@@ -244,9 +271,9 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
             <span>
-              Sinal de Entrada ({paymentResult.downPaymentPercent}%):{' '}
+              Sinal de Entrada ({safePaymentResult.downPaymentPercent}%):{' '}
               <strong className="text-white">
-                R$ {paymentResult.downPaymentAmount.toFixed(2)}
+                R$ {safePaymentResult.downPaymentAmount.toFixed(2)}
               </strong>
             </span>
           </div>
@@ -254,7 +281,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
           <span className="text-[11px] text-slate-400">
             Restante na entrega:{' '}
             <strong className="text-slate-200">
-              R$ {paymentResult.balanceAmount.toFixed(2)}
+              R$ {safePaymentResult.balanceAmount.toFixed(2)}
             </strong>
           </span>
         </div>
@@ -264,7 +291,10 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
       <ManagePaymentMethodsModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSettingsSaved={onRefreshSettings}
+        onSettingsSaved={newSettings => {
+          if (onUpdateSettings) onUpdateSettings(newSettings);
+          if (onRefreshSettings) onRefreshSettings();
+        }}
       />
     </Card>
   );
