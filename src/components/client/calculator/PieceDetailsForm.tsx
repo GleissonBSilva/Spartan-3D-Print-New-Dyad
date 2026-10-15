@@ -96,17 +96,23 @@ export const PieceDetailsForm: React.FC<PieceDetailsFormProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-semibold text-slate-300 block mb-1">
-            Impressora Alocada na Farm
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-semibold text-slate-300 block">
+              Impressora Alocada na Farm
+            </label>
+            <span className="text-[10px] text-indigo-400 font-medium">
+              (Opcional no orçamento)
+            </span>
+          </div>
           <select
             value={selectedImpressoraId}
             onChange={e => setSelectedImpressoraId(e.target.value)}
             className="w-full bg-slate-950 border border-slate-750 text-white text-xs rounded-xl h-10 px-3 focus:outline-none focus:border-indigo-500"
           >
+            <option value="">Definir na aprovação (Estimativa padrão: 350W)</option>
             {impressoras.map(i => (
               <option key={i.id} value={i.id}>
-                {i.nome} ({i.potenciaWatts}W - {i.status})
+                {i.nome} ({i.potenciaWatts}W · {i.status === 'disponivel' ? '🟢 Disponível' : i.status === 'imprimindo' ? '🟡 Em impressão' : '⚪ ' + i.status})
               </option>
             ))}
           </select>

@@ -60,13 +60,13 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
     if (!gate.allowed) { toast.error(gate.status.message || 'Limite de projetos atingido.'); return false; }
     if (!user?.companyId || !supabase) { toast.error('Entre na conta para salvar o projeto.'); return false; }
     const startsProduction = proj.status === 'em_impressao';
-    if (startsProduction && !proj.impressoraId) {
-      toast.error('Selecione uma impressora antes de iniciar a produção.');
-      return false;
-    }
-    if (proj.impressoraId) {
+    if (startsProduction) {
+      if (!proj.impressoraId) {
+        toast.error('Selecione uma impressora antes de iniciar a produção.');
+        return false;
+      }
       const printer = impressoras.find(item => item.id === proj.impressoraId);
-      if (!printer || printer.status === 'imprimindo' || printer.status === 'pausada' || printer.status === 'manutencao') {
+      if (!printer || printer.status !== 'disponivel') {
         toast.error('Escolha uma impressora disponível antes de iniciar a produção.');
         return false;
       }
@@ -95,7 +95,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       const saved = fromRow(row);
       setProjetos(prev => [saved, ...prev]);
       if (productionStarted) await Promise.all([refreshFilamentos(), refreshImpressoras()]);
-      toast.success(productionStarted ? `Projeto ${proj.nomePeca} salvo e produção iniciada.` : `Orçamento ${proj.nomePeca} salvo.`);
+      toast.success(productionStarted ? `Projeto ${proj.nomePeca} salvo e produção iniciada.` : `Orçamento ${proj.nomePeca} salvo com sucesso!`);
     }).catch(error => toast.error(`Não foi possível salvar o projeto: ${error.message}`));
     return true;
   };
@@ -104,6 +104,17 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
     const project = projetos.find(item => item.id === id);
     if (!project || !supabase) return;
     const startsProduction = newStatus === 'em_impressao' && !project.estoqueBaixado;
+    if (startsProduction) {
+      if (!project.impressoraId) {
+        toast.error('Selecione uma impressora antes de iniciar a produção.');
+        return;
+      }
+      const printer = impressoras.find(item => item.id === project.impressoraId);
+      if (!printer || printer.status !== 'disponivel') {
+        toast.error(`A impressora ${printer?.nome || ''} não está disponível no momento. Escolha uma máquina livre para iniciar.`);
+        return;
+      }
+    }
     void (async () => {
       const { error } = await supabase!.rpc('spartan_set_project_status', { p_project_id: id, p_status: newStatus });
       if (error) throw error;

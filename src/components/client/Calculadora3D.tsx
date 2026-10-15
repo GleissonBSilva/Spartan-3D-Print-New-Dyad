@@ -34,7 +34,7 @@ export const Calculadora3D: React.FC = () => {
   const [nomePeca, setNomePeca] = useState(sourceProject?.nomePeca || '');
   const [clienteNome, setClienteNome] = useState(recalculateProject ? recalculateProject.clienteNome : '');
   const [tempoHoras, setTempoHoras] = useState<number | string>(sourceProject?.tempoEstimadoHoras || 0);
-  const [selectedImpressoraId, setSelectedImpressoraId] = useState(sourceProject?.impressoraId || impressoras[0]?.id || '');
+  const [selectedImpressoraId, setSelectedImpressoraId] = useState(sourceProject?.impressoraId || '');
   const [observacoes] = useState(sourceProject?.observacoes || '');
 
   // Escala, Comercial e Extras (Com suporte a string para permitir apagar livremente)
@@ -71,7 +71,7 @@ export const Calculadora3D: React.FC = () => {
     setMaterials([{ id: crypto.randomUUID(), materialId: filament.id, materialName: `${filament.tipo} - ${filament.cor}`, color: filament.cor, colorHex: filament.colorHex, filamentType: filament.tipo, weightGrams: 1, costPerGram, totalCost: Number(costPerGram.toFixed(2)) }]);
   }, [filamentos, materials.length]);
   
-  const impressoraAtual = impressoras.find(i => i.id === selectedImpressoraId) || impressoras[0];
+  const impressoraAtual = selectedImpressoraId ? impressoras.find(i => i.id === selectedImpressoraId) : undefined;
 
   // Cálculo de Preço Avançado Corrigido
   const calculationResult: PricingCalculationResult = useMemo(() => {
@@ -270,6 +270,18 @@ export const Calculadora3D: React.FC = () => {
       return;
     }
 
+    if (status === 'em_impressao') {
+      if (!selectedImpressoraId) {
+        toast.error('Selecione uma impressora antes de aprovar e iniciar a produção.');
+        return;
+      }
+      const printer = impressoras.find(i => i.id === selectedImpressoraId);
+      if (!printer || printer.status !== 'disponivel') {
+        toast.error(`A impressora ${printer?.nome || ''} não está disponível no momento. Para iniciar a produção agora, escolha uma máquina livre ou salve como Orçamento.`);
+        return;
+      }
+    }
+
     const matSummary = materials.map(m => `${m.filamentType} ${m.color} (${m.weightGrams}g)`).join(' + ');
     setSavingProject(true);
     
@@ -280,8 +292,8 @@ export const Calculadora3D: React.FC = () => {
       const projectData = {
         nomePeca,
         clienteNome,
-        impressoraId: impressoraAtual?.id,
-        impressoraNome: impressoraAtual?.nome,
+        impressoraId: selectedImpressoraId || undefined,
+        impressoraNome: impressoraAtual?.nome || 'A definir na aprovação',
         pesoEstimadoG: calculationResult.totalWeightGrams,
         tempoEstimadoHoras: parseTimeStringToDecimal(tempoHoras),
         materials,
@@ -295,7 +307,7 @@ export const Calculadora3D: React.FC = () => {
         margemLucroPercentual: margemLucroPorcento,
         precoCobrado: calculationResult.suggestedPrice,
         lucroLiquido: calculationResult.estimatedProfit,
-        status: recalculateProject ? status : 'orcamento',
+        status: recalculateProject ? status : status,
         observacoes,
         arquivoPath: uploadedFilePath || sourceProject?.arquivoPath,
         imagemPath: imagePath || sourceProject?.imagemPath,
@@ -317,7 +329,13 @@ export const Calculadora3D: React.FC = () => {
         
       if (success) {
         setImageFile(null);
-        toast.success(recalculateProject ? 'Projeto atualizado com sucesso!' : 'Novo orçamento gerado com sucesso a partir do modelo!');
+        toast.success(
+          recalculateProject
+            ? 'Projeto atualizado com sucesso!'
+            : status === 'em_impressao'
+            ? 'Projeto aprovado e produção iniciada com sucesso!'
+            : 'Novo orçamento salvo com sucesso!'
+        );
         navigate('/cliente/projetos', { replace: true, state: null });
       }
     } catch (error) {

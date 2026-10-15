@@ -48,7 +48,8 @@ const ProjectCard: React.FC<{
   onView: (project: ProjetoImpressao3D) => void; onEdit: (project: ProjetoImpressao3D) => void;
   onDelete: (project: ProjetoImpressao3D) => void; onPdf: (project: ProjetoImpressao3D) => void;
   onStatus: (id: string, status: ProjetoImpressao3D['status']) => void;
-}> = ({ project, printerName, printerCanStart, onView, onEdit, onDelete, onPdf, onStatus }) => {
+  onStartWithPrinter: (project: ProjetoImpressao3D) => void;
+}> = ({ project, printerName, printerCanStart, onView, onEdit, onDelete, onPdf, onStatus, onStartWithPrinter }) => {
   const image = useSignedImage(project.imagemPath);
   const materials = project.materials || [];
   const reference = project.id.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase();
@@ -65,10 +66,10 @@ const ProjectCard: React.FC<{
       <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-300"><span>{project.quantidade || 1} {project.quantidade === 1 ? 'peça' : 'peças'}</span><span><Weight className="mr-1 inline h-3.5 w-3.5 text-slate-500" />{project.pesoEstimadoG} g</span><span><Clock3 className="mr-1 inline h-3.5 w-3.5 text-slate-500" />{formatHours(project.tempoEstimadoHoras)}</span><span>{materials.length ? materials.map(item => `${item.filamentType} ${item.color}`).join(' + ') : 'Material não informado'}</span></div>
       {deadline && <p className={`text-xs ${late ? 'font-semibold text-rose-300' : 'text-slate-400'}`}>{late ? 'Atrasado · ' : 'Entrega prevista · '}{deadline.toLocaleDateString('pt-BR')}</p>}
       <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-950 p-3"><MoneyCell label="Custo estimado" value={money(project.custoTotal)} /><MoneyCell label="Preço de venda" value={money(project.precoCobrado)} /><MoneyCell label="Lucro estimado" value={money(project.lucroLiquido)} highlight /></div>
-      <div className={`flex items-center gap-2 text-xs ${project.impressoraId ? 'text-slate-400' : ['orcamento', 'aprovado', 'em_impressao'].includes(project.status) ? 'text-amber-300' : 'text-slate-500'}`}>{!project.impressoraId && ['orcamento', 'aprovado', 'em_impressao'].includes(project.status) && <AlertTriangle className="h-3.5 w-3.5" />}Impressora: {printerName || (project.impressoraId ? 'Carregando…' : 'Não definida')}</div>
+      <div className={`flex items-center gap-2 text-xs ${project.impressoraId ? 'text-slate-400' : ['aprovado', 'em_impressao'].includes(project.status) ? 'text-amber-300' : 'text-slate-500'}`}>{!project.impressoraId && ['aprovado', 'em_impressao'].includes(project.status) && <AlertTriangle className="h-3.5 w-3.5" />}Impressora: {printerName || (project.status === 'orcamento' ? 'A definir na aprovação' : 'Não definida')}</div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3"><Button size="sm" onClick={() => onView(project)} className="bg-indigo-600 text-xs text-white hover:bg-indigo-500"><Eye className="mr-1.5 h-3.5 w-3.5" />Abrir projeto</Button>
         {project.status === 'orcamento' && <Button size="sm" onClick={() => onStatus(project.id, 'aprovado')} className="bg-emerald-600 text-xs text-white hover:bg-emerald-500"><Check className="mr-1.5 h-3.5 w-3.5" />Aprovar orçamento</Button>}
-        {project.status === 'aprovado' && (canStart ? <Button size="sm" onClick={() => onStatus(project.id, 'em_impressao')} className="bg-sky-600 text-xs text-white hover:bg-sky-500"><Play className="mr-1.5 h-3.5 w-3.5" />Iniciar produção</Button> : <Button size="sm" variant="outline" onClick={() => onEdit(project)} className="border-amber-500/30 bg-amber-500/10 text-xs text-amber-200 hover:bg-amber-500/20">Definir impressora</Button>)}
+        {project.status === 'aprovado' && (canStart ? <Button size="sm" onClick={() => onStatus(project.id, 'em_impressao')} className="bg-sky-600 text-xs text-white hover:bg-sky-500"><Play className="mr-1.5 h-3.5 w-3.5" />Iniciar produção</Button> : <Button size="sm" onClick={() => onStartWithPrinter(project)} className="bg-sky-600 text-xs text-white hover:bg-sky-500"><Play className="mr-1.5 h-3.5 w-3.5" />Escolher impressora & Iniciar</Button>)}
         {project.status === 'em_impressao' && <Button size="sm" onClick={() => onStatus(project.id, 'concluido')} className="bg-indigo-600 text-xs text-white hover:bg-indigo-500"><Check className="mr-1.5 h-3.5 w-3.5" />Marcar como concluído</Button>}
       </div>
     </div>
@@ -90,6 +91,32 @@ export const ProjetosManager: React.FC = () => {
   const [failedModelPath, setFailedModelPath] = useState<string | null>(null);
   const [editProject, setEditProject] = useState<ProjetoImpressao3D | null>(null);
   const [saving, setSaving] = useState(false);
+  const [startProductionProject, setStartProductionProject] = useState<ProjetoImpressao3D | null>(null);
+  const [selectedStartPrinterId, setSelectedStartPrinterId] = useState('');
+  const [startingProduction, setStartingProduction] = useState(false);
+
+  const handleOpenStartProduction = (project: ProjetoImpressao3D) => {
+    setStartProductionProject(project);
+    const availablePrinter = impressoras.find(p => p.status === 'disponivel');
+    setSelectedStartPrinterId(availablePrinter?.id || '');
+  };
+
+  const handleConfirmStartProduction = async () => {
+    if (!startProductionProject || !selectedStartPrinterId) return;
+    setStartingProduction(true);
+    try {
+      const updated = await updateProjeto(startProductionProject.id, { impressoraId: selectedStartPrinterId });
+      if (updated) {
+        updateProjetoStatus(startProductionProject.id, 'em_impressao');
+        setStartProductionProject(null);
+        setSelectedStartPrinterId('');
+      }
+    } catch {
+      toast.error('Não foi possível alocar a impressora.');
+    } finally {
+      setStartingProduction(false);
+    }
+  };
 
   const handleDelete = async (project: ProjetoImpressao3D) => {
     const confirmed = window.confirm(`Excluir "${project.nomePeca}"? Esta ação não pode ser desfeita.`);
@@ -162,14 +189,14 @@ export const ProjetosManager: React.FC = () => {
     <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">{([{ id: 'todos', label: 'Todos', count: counts.todos }, { id: 'orcamento', label: 'Orçamentos', count: counts.orcamento }, { id: 'producao', label: 'Produção', count: counts.producao }, { id: 'concluido', label: 'Concluídos', count: counts.concluido }] as const).map(item => <button key={item.id} onClick={() => setFiltro(item.id)} className={`rounded-xl border p-3 text-left transition-colors ${filtro === item.id ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}><span className="block text-xs text-slate-400">{item.label}</span><strong className="mt-1 block text-lg text-white">{item.count}</strong></button>)}</section>
     <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input value={busca} onChange={event => setBusca(event.target.value)} placeholder="Buscar projeto ou cliente" aria-label="Buscar projeto ou cliente" className="border-slate-800 bg-slate-900 pl-9 text-white" /></div>
 
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projectsFiltered.map(project => { const assignedPrinter = impressoras.find(printer => printer.id === project.impressoraId); return <ProjectCard key={project.id} project={project} printerName={assignedPrinter?.nome} printerCanStart={assignedPrinter?.status === 'disponivel'} onView={setViewProject} onEdit={setEditProject} onDelete={handleDelete} onPdf={openPdf} onStatus={updateProjetoStatus} />; })}</section>
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projectsFiltered.map(project => { const assignedPrinter = impressoras.find(printer => printer.id === project.impressoraId); return <ProjectCard key={project.id} project={project} printerName={assignedPrinter?.nome} printerCanStart={assignedPrinter?.status === 'disponivel'} onView={setViewProject} onEdit={setEditProject} onDelete={handleDelete} onPdf={openPdf} onStatus={updateProjetoStatus} onStartWithPrinter={handleOpenStartProduction} />; })}</section>
     {projectsFiltered.length === 0 && <Card className="border-slate-800 bg-slate-900 p-10 text-center"><FolderKanban className="mx-auto h-8 w-8 text-slate-500" /><p className="mt-3 text-sm text-slate-300">{busca ? 'Nenhum projeto corresponde à busca.' : 'Nenhum projeto nesta categoria.'}</p><Link to="/cliente/calculadora"><Button className="mt-4 bg-indigo-600 text-white"><Plus className="mr-2 h-4 w-4" />Criar primeiro projeto</Button></Link></Card>}
 
     {viewProject && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/80 p-3 sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget) setViewProject(null); }}><article className="my-auto w-full max-w-xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
       <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4"><div className="flex items-center gap-2"><Eye className="h-4 w-4 text-amber-400" /><h3 className="font-bold text-white">Visualização do produto</h3></div><Button variant="ghost" size="icon" aria-label="Fechar visualização" onClick={() => setViewProject(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></Button></header>
       <div className="space-y-4 p-4 sm:p-5"><div className="flex h-44 items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950 sm:h-52">{show3D && !modelFailed ? <Suspense fallback={viewImage ? <img src={viewImage} alt={`Imagem de ${viewProject.nomePeca}`} className="h-full w-full object-contain" /> : <span className="text-sm text-slate-400">Carregando modelo 3D…</span>}><ModelPreview key={mediaPath} filePath={mediaPath!} onLoadError={handleModelError} /></Suspense> : viewImage ? <img src={viewImage} alt={`Imagem de ${viewProject.nomePeca}`} className="h-full w-full object-contain" /> : <div className="flex flex-col items-center gap-2 text-slate-500"><ImagePlus className="h-8 w-8" /><span className="text-xs">{show3D ? 'Não foi possível visualizar o modelo e nenhuma imagem foi anexada' : 'Nenhuma imagem ou modelo foi anexado'}</span></div>}</div>
         <div className="flex items-start justify-between gap-2"><div><h4 className="text-lg font-bold text-white">{viewProject.nomePeca}</h4><p className="text-xs text-slate-400">Projeto #{viewProject.id.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase()}</p></div><Badge variant="outline" className={statusClass[viewProject.status]}>{statusLabel[viewProject.status]}</Badge></div>
-        <div className="grid grid-cols-2 gap-2 text-xs"><InfoCell label="Cliente / solicitante" value={viewProject.clienteNome || 'Não informado'} icon={UserRound} /><InfoCell label="Data de criação" value={new Date(`${viewProject.dataCriacao}T00:00:00`).toLocaleDateString('pt-BR')} /><InfoCell label="Quantidade" value={`${viewProject.quantidade || 1} peça(s)`} /><InfoCell label="Material e peso" value={viewMaterials.length ? viewMaterials.map(material => `${material.filamentType} (${material.weightGrams} g)`).join(' · ') : `${viewProject.pesoEstimadoG} g`} icon={Weight} /><InfoCell label="Tempo de impressão" value={formatHours(viewProject.tempoEstimadoHoras)} icon={Clock3} /><InfoCell label="Impressora" value={printerName || 'Não definida'} icon={AlertTriangle} /><InfoCell label="Entrega prevista" value={viewProject.dataEntrega ? new Date(`${viewProject.dataEntrega}T00:00:00`).toLocaleDateString('pt-BR') : 'Não definida'} /><InfoCell label="Custo total estimado" value={money(viewProject.custoTotal)} /></div>
+        <div className="grid grid-cols-2 gap-2 text-xs"><InfoCell label="Cliente / solicitante" value={viewProject.clienteNome || 'Não informado'} icon={UserRound} /><InfoCell label="Data de criação" value={new Date(`${viewProject.dataCriacao}T00:00:00`).toLocaleDateString('pt-BR')} /><InfoCell label="Quantidade" value={`${viewProject.quantidade || 1} peça(s)`} /><InfoCell label="Material e peso" value={viewMaterials.length ? viewMaterials.map(material => `${material.filamentType} (${material.weightGrams} g)`).join(' · ') : `${viewProject.pesoEstimadoG} g`} icon={Weight} /><InfoCell label="Tempo de impressão" value={formatHours(viewProject.tempoEstimadoHoras)} icon={Clock3} /><InfoCell label="Impressora" value={printerName || (viewProject.status === 'orcamento' ? 'A definir na aprovação' : 'Não definida')} icon={viewProject.status === 'orcamento' ? undefined : AlertTriangle} /><InfoCell label="Entrega prevista" value={viewProject.dataEntrega ? new Date(`${viewProject.dataEntrega}T00:00:00`).toLocaleDateString('pt-BR') : 'Não definida'} /><InfoCell label="Custo total estimado" value={money(viewProject.custoTotal)} /></div>
         {viewMaterials.length > 0 && <div className="flex flex-wrap gap-2">{viewMaterials.map((material, index) => <span key={material.id || index} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-[11px] text-slate-300"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: material.colorHex || '#6366f1' }} />{material.filamentType} · {material.color}: {material.weightGrams} g</span>)}</div>}
         <div className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950 px-4 py-3"><div><p className="text-[10px] uppercase text-slate-500">Lucro estimado</p><p className="text-xs font-semibold text-emerald-300">{money(viewProject.lucroLiquido)}</p></div><div className="text-right"><p className="text-[10px] uppercase text-slate-500">Preço sugerido</p><p className="text-xl font-black text-amber-400">{money(viewProject.precoCobrado)}</p></div></div>
         <div className="flex flex-col gap-2 sm:flex-row"><Button onClick={() => { setSelectedProjetoPdf({ ...viewProject, impressoraNome: printerName }); setViewProject(null); }} className="flex-1 bg-amber-600 text-white hover:bg-amber-500"><FileText className="mr-2 h-4 w-4" />Gerar orçamento comercial</Button><Button variant="outline" onClick={() => setViewProject(null)} className="border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800">Fechar</Button></div>
@@ -179,6 +206,80 @@ export const ProjetosManager: React.FC = () => {
     {editProject && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/80 p-3 sm:p-6"><form onSubmit={handleSaveEdit} className="my-auto max-h-[95vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6"><div className="flex items-start justify-between"><div><h3 className="text-lg font-bold text-white">Editar projeto</h3><p className="text-sm text-slate-400">Atualize os dados e a imagem do produto.</p></div><Button type="button" variant="ghost" size="icon" aria-label="Fechar edição" onClick={() => setEditProject(null)}><X className="h-5 w-5" /></Button></div>
       <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm text-slate-300">Nome do produto<Input name="name" required maxLength={160} defaultValue={editProject.nomePeca} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300">Cliente<Input name="client" maxLength={160} defaultValue={editProject.clienteNome} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300">Impressora<select name="printer" defaultValue={editProject.impressoraId || ''} disabled={editProject.status === 'em_impressao'} className="mt-1 h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white disabled:opacity-60"><option value="">Não definida</option>{impressoras.filter(printer => printer.status === 'disponivel' || printer.id === editProject.impressoraId).map(printer => <option key={printer.id} value={printer.id}>{printer.nome} · {printer.status === 'disponivel' ? 'Disponível' : 'Selecionada'}</option>)}</select>{editProject.status === 'em_impressao' && <input type="hidden" name="printer" value={editProject.impressoraId || ''} />}</label><label className="text-sm text-slate-300">Quantidade de peças<Input name="quantity" type="number" required min="1" step="1" defaultValue={editProject.quantidade || 1} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300">Entrega prevista<Input name="dueDate" type="date" defaultValue={editProject.dataEntrega || ''} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300">Peso estimado total (g)<Input name="weight" type="number" min="0" step="0.1" defaultValue={editProject.pesoEstimadoG} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300">Tempo estimado total (h)<Input name="time" type="number" min="0" step="0.1" defaultValue={editProject.tempoEstimadoHoras} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300">Preço de venda (R$)<Input name="price" type="number" min="0" step="0.01" defaultValue={editProject.precoCobrado} className="mt-1 bg-slate-950 text-white" /></label><label className="text-sm text-slate-300 sm:col-span-2">Observações<textarea name="notes" rows={3} defaultValue={editProject.observacoes || ''} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-white" /></label><label className="text-sm text-slate-300 sm:col-span-2">Imagem do produto (JPG, PNG ou WebP)<input name="image" type="file" accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-white" /></label>{editProject.imagemPath && <label className="flex items-center gap-2 text-xs text-slate-400 sm:col-span-2"><input type="checkbox" name="removeImage" />Remover imagem atual</label>}</div>
       <div className="flex flex-col justify-between gap-2 border-t border-slate-800 pt-4 sm:flex-row"><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={openCostCalculator} disabled={Boolean(editProject.estoqueBaixado || ['concluido', 'cancelado'].includes(editProject.status))} className="border-indigo-500/40 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-50"><Calculator className="mr-2 h-4 w-4" />Recalcular custos</Button><Button type="button" variant="outline" onClick={createBasedOnProject} className="border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"><Copy className="mr-2 h-4 w-4" />Usar como base</Button></div><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditProject(null)} className="border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800">Cancelar</Button><Button type="submit" disabled={saving} className="bg-indigo-600 text-white">{saving ? 'Salvando…' : 'Salvar alterações'}</Button></div></div></form></div>}
+
+    {startProductionProject && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/80 p-3 sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget) setStartProductionProject(null); }}>
+        <div className="my-auto w-full max-w-lg overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Play className="h-4 w-4 text-sky-400" />
+                Alocar Impressora & Iniciar Produção
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {startProductionProject.nomePeca} · Cliente: {startProductionProject.clienteNome || 'Não informado'}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => setStartProductionProject(null)} className="text-slate-400 hover:text-white">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="py-4 space-y-4 text-xs text-slate-300">
+            <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <div><span className="text-slate-500 block">Tempo estimado:</span><strong className="text-white">{formatHours(startProductionProject.tempoEstimadoHoras)}</strong></div>
+              <div><span className="text-slate-500 block">Peso total:</span><strong className="text-white">{startProductionProject.pesoEstimadoG} g</strong></div>
+            </div>
+
+            {impressoras.filter(p => p.status === 'disponivel').length > 0 ? (
+              <div>
+                <label className="text-xs font-semibold text-slate-200 block mb-1.5">
+                  Escolha uma impressora disponível na Farm:
+                </label>
+                <select
+                  value={selectedStartPrinterId}
+                  onChange={e => setSelectedStartPrinterId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl h-11 px-3 text-xs focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">Selecione uma máquina livre...</option>
+                  {impressoras.filter(p => p.status === 'disponivel').map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome} ({p.potenciaWatts}W · Disponível)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-amber-200">
+                <p className="font-semibold flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  Nenhuma impressora disponível no momento
+                </p>
+                <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                  Todas as {impressoras.length} máquinas da farm estão ocupadas ou em manutenção. Aguarde uma impressão finalizar ou libere uma máquina para iniciar este trabalho.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
+            <Button variant="outline" onClick={() => setStartProductionProject(null)} className="border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800 text-xs">
+              Cancelar
+            </Button>
+            {impressoras.filter(p => p.status === 'disponivel').length > 0 && (
+              <Button
+                disabled={!selectedStartPrinterId || startingProduction}
+                onClick={handleConfirmStartProduction}
+                className="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold"
+              >
+                {startingProduction ? 'Iniciando...' : 'Confirmar & Iniciar Produção'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
     {selectedProjetoPdf && <OrcamentoPdfModal isOpen onClose={() => setSelectedProjetoPdf(null)} projeto={selectedProjetoPdf} />}
   </div>;
 };

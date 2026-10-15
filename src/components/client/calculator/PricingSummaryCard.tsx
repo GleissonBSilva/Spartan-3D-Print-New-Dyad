@@ -128,6 +128,10 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
           <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-white" />
           Aprovar & Iniciar Produção (Baixar Estoque)
         </Button>}
+
+        <p className="text-[10px] text-center text-slate-400 pt-1 leading-relaxed">
+          💡 <strong className="text-slate-300">Orçamentos Livres:</strong> Você pode gerar múltiplos orçamentos mesmo sem impressora disponível. A máquina só será exigida na aprovação e início da impressão.
+        </p>
       </div>
     </Card>
   );

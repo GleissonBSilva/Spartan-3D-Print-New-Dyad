@@ -277,7 +277,7 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
               </div>
               <div>
                 <span className="text-[10px] text-gray-500 block uppercase font-semibold">Impressora</span>
-                <strong className="text-gray-800 text-xs">{projeto.impressoraNome || 'Bambu Lab A1 Combo'}</strong>
+                <strong className="text-gray-800 text-xs">{projeto.impressoraNome || 'A definir na aprovação'}</strong>
               </div>
             </div>
 
