@@ -22,11 +22,24 @@ export const SpartanAiAssistant: React.FC = () => {
   const [customKey, setCustomKey] = useState(AiDiagnosticService.getCustomApiKey());
   const [customProvider, setCustomProvider] = useState<'groq' | 'openai'>(AiDiagnosticService.getCustomProvider());
 
-  const sugestoes = [
-    { cat: 'falha', text: 'Minha peça em PETG está apresentando stringing (fiapos) excessivo. Como calibrar no OrcaSlicer?' },
-    { cat: 'falha', text: 'Peça descolando da mesa (Warping) em ABS. Qual temperatura de mesa e fechamento usar?' },
-    { cat: 'material', text: 'Quais as melhores configurações de retração e velocidade para imprimir TPU 95A?' },
-    { cat: 'orcamento', text: 'Como precificar uma peça de 250g em PLA que demora 12h de máquina para uma empresa B2B?' },
+  const [categoriaAtiva, setCategoriaAtiva] = useState<'iniciante' | 'avancado'>('iniciante');
+
+  const sugestoesIniciante = [
+    { text: 'Estou começando agora: qual o passo a passo para a primeira impressão?' },
+    { text: 'A peça não está grudando na mesa ou soltou durante a impressão.' },
+    { text: 'A impressora está fazendo barulho de estalo (tec tec) e não sai filamento.' },
+    { text: 'A peça ficou cheia de fios parecendo teia de aranha.' },
+    { text: 'Qual o melhor filamento para quem está aprendendo a imprimir?' },
+    { text: 'Minha peça ficou muito fraca e está quebrando fácil entre as camadas.' },
+  ];
+
+  const sugestoesAvancado = [
+    { text: 'Minha peça em PETG está apresentando stringing (fiapos) excessivo no OrcaSlicer.' },
+    { text: 'Peça descolando da mesa (Warping) em ABS. Qual temperatura de mesa e fechamento usar?' },
+    { text: 'Pode misturar filamento PLA com PETG para suporte com Zero Gap?' },
+    { text: 'Quais as melhores configurações de retração e velocidade para imprimir TPU 95A?' },
+    { text: 'Como calibrar Input Shaping e Pressure Advance no Klipper?' },
+    { text: 'Como precificar uma peça de 250g em PLA que demora 12h para empresa B2B?' },
   ];
 
   const handleSalvarChave = (e: React.FormEvent) => {
@@ -110,15 +123,42 @@ export const SpartanAiAssistant: React.FC = () => {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-400 block">Dúvidas Frequentes da Farm:</span>
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+              <span className="text-xs font-semibold text-slate-300">Dúvidas Rápidas para Clicar:</span>
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCategoriaAtiva('iniciante')}
+                  className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
+                    categoriaAtiva === 'iniciante'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  🔰 Sou Iniciante (Aprendendo)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategoriaAtiva('avancado')}
+                  className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
+                    categoriaAtiva === 'avancado'
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  ⚙️ Farm & Avançado
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {sugestoes.map((sug, i) => (
+              {(categoriaAtiva === 'iniciante' ? sugestoesIniciante : sugestoesAvancado).map((sug, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => setPergunta(sug.text)}
-                  className="text-left p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500/60 text-xs text-slate-300 transition-all hover:bg-slate-900"
+                  className="text-left p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/50 text-xs text-slate-300 transition-all hover:bg-slate-900 leading-snug"
                 >
                   {sug.text}
                 </button>
@@ -126,11 +166,18 @@ export const SpartanAiAssistant: React.FC = () => {
             </div>
           </div>
 
-          <form onSubmit={handleEnviar} className="space-y-3 pt-2">
+          <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-2.5 text-slate-300 text-[11px] flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              <strong className="text-amber-300">Você está aprendendo?</strong> Não precisa saber termos técnicos! Pode descrever com suas próprias palavras: <em>&quot;a peça soltou da mesa&quot;</em>, <em>&quot;está fazendo barulho tec-tec&quot;</em> ou <em>&quot;parecendo teia de aranha&quot;</em>.
+            </span>
+          </div>
+
+          <form onSubmit={handleEnviar} className="space-y-3 pt-1">
             <Input
               value={pergunta}
               onChange={e => setPergunta(e.target.value)}
-              placeholder="Digite seu problema (ex: entupimento de bico 0.4 com filamento madeira)..."
+              placeholder="Digite com suas palavras (ex: estou aprendendo, por onde começo? ou a peça soltou da mesa)..."
               className="bg-slate-950 border-slate-750 text-white rounded-xl h-11 text-xs"
             />
             <div className="flex justify-end">
@@ -140,7 +187,7 @@ export const SpartanAiAssistant: React.FC = () => {
                 className="bg-gradient-to-r from-amber-500 to-indigo-600 hover:opacity-90 text-white text-xs font-bold rounded-xl h-10 px-5"
               >
                 <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                {carregando ? 'Consultando Parâmetros...' : 'Pedir Diagnóstico IA'}
+                {carregando ? 'Consultando Diagnóstico...' : 'Pedir Diagnóstico IA'}
               </Button>
             </div>
           </form>

@@ -48,4 +48,30 @@ describe('AiDiagnosticService', () => {
     expect(answer).toContain('100°C a 110°C');
     expect(answer).toContain('Enclosure');
   });
+
+  it('responde com guia acolhedor para quem está aprendendo e começando do zero', () => {
+    const answer = AiDiagnosticService.getExpertAnswer('estou aprendendo, por onde comeco?');
+    expect(answer).toContain('Guia Spartan 3D para Iniciantes');
+    expect(answer).toContain('PLA');
+    expect(answer).toContain('Fatiador');
+    expect(answer).not.toContain('Fora do Escopo');
+  });
+
+  it('reconhece dúvidas cotidianas de iniciantes descritas sem jargões técnicos', () => {
+    // Sintoma: Barulho tec tec
+    const answerTecTec = AiDiagnosticService.getExpertAnswer('a impressora ta fazendo barulho de estalo tec tec e nao sai plastico');
+    expect(answerTecTec).toContain('Barulho de Estalo');
+    expect(answerTecTec).toContain('Z-Offset');
+
+    // Sintoma: Peça soltou da mesa
+    const answerSoltou = AiDiagnosticService.getExpertAnswer('a peca soltou da mesa no meio da impressao');
+    expect(answerSoltou).toContain('Peça Não Gruda ou Soltou da Mesa');
+    expect(answerSoltou).toContain('detergente');
+
+    // Sintoma: Teia de aranha
+    const answerTeia = AiDiagnosticService.getExpertAnswer('minha peca ficou parecendo cheia de teia de aranha');
+    expect(answerTeia).toContain('Teia de Aranha');
+    expect(answerTeia).toContain('Retração');
+  });
 });
+

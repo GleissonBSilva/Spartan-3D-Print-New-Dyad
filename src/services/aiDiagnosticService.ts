@@ -85,6 +85,15 @@ export class AiDiagnosticService {
       'gyroid', 'parede', 'paredes', 'perimetro', 'suporte', 'suportes', 'velocidade', 'aceleracao',
       'resfriamento', 'ventoinha', 'fan', 'temperatura', 'fluxo', 'flow rate', 'pressure advance',
       'linear advance', 'input shaping',
+      // Termos de Aprendizado, Iniciantes e Descrições Cotidianas
+      'iniciante', 'iniciantes', 'aprender', 'aprendendo', 'comecar', 'comeco', 'iniciar',
+      'primeira impressao', 'dicas', 'passo a passo', 'guia', 'tutorial', 'ajuda', 'socorro',
+      'grud', 'grudar', 'soltou', 'soltando', 'descolou', 'solta', 'caiu',
+      'tec tec', 'tac tac', 'estalo', 'estalos', 'barulho', 'estalando', 'clique',
+      'nao sai', 'parou de sair', 'nao derrete', 'parou',
+      'teia', 'aranha', 'cabelo de anjo', 'fiozinhos', 'fios',
+      'quebrando', 'fraca', 'rachando', 'rachadura', 'quebra facil',
+      'plastico', 'plasticos',
       // Negócio e Gestão de Farm
       'farm', 'orcamento', 'precific', 'cobrar', 'preco', 'custo', 'mrr', 'manutencao', 'producao',
     ];
@@ -124,6 +133,160 @@ não se refere a **impressão 3D, fatiamento, polímeros ou gestão de farms**.
     // Validação de Escopo: se não for sobre 3D, não gera resposta alucinatória
     if (!this.isRelevant3DTopic(question)) {
       return this.getOutOfScopeResponse(question);
+    }
+
+    // 0. Guia Acolhedor para Iniciantes e Quem Está Aprendendo do Zero
+    if (
+      q.includes('iniciante') ||
+      q.includes('aprend') ||
+      (q.includes('comec') && !q.includes('comeco a precific')) ||
+      q.includes('primeira impressao') ||
+      q.includes('passo a passo') ||
+      q.includes('por onde comeco') ||
+      q.includes('como funciona') ||
+      q.includes('dicas para comecar')
+    ) {
+      return `### 🔰 Guia Spartan 3D para Iniciantes: Como Começar do Zero com Sucesso!
+
+Seja muito bem-vindo ao mundo da impressão 3D! Você **não precisa** decorar nomes técnicos nem configurações difíceis para começar a imprimir peças de altíssima qualidade.
+
+---
+
+#### 1. Os 3 Pilares Simples da Impressão 3D
+1. **O Modelo 3D (.STL ou .3MF):** É o arquivo digital da peça que você pode baixar gratuitamente em sites como *Printables, MakerWorld ou Thingiverse*.
+2. **O Programa Fatiador (Ex: OrcaSlicer, Bambu Studio ou Ultimaker Cura):** É o aplicativo no seu computador onde você abre a peça e ele a fatia em centenas de camadas horizontais para a impressora entender.
+3. **O Filamento:** O carretel de plástico que a impressora derrete e deposita camada por camada.
+
+---
+
+#### 2. O Melhor Filamento para Quem Está Começando: PLA
+* **Por que o PLA?** É o plástico mais amigável do mercado: não solta cheiro ruim, não deforma as pontas da peça e não necessita de impressora fechada.
+* **Configuração básica recomendada para PLA:**
+  * **Temperatura do Bico:** \`200°C a 210°C\`
+  * **Temperatura da Mesa:** \`55°C a 60°C\`
+  * **Velocidade Inicial:** \`40 a 50 mm/s\`
+
+---
+
+#### 3. As 3 Regras de Ouro para a Peça não Dar Errado
+1. **Mesa Limpa:** Antes de imprimir, lave a mesa com detergente de cozinha neutro e água morna. A gordura dos dedos é o principal motivo de peças soltarem.
+2. **Primeira Camada (Z-Offset):** A primeira linha de plástico que sai deve ficar levemente achatada na mesa (não pode ficar solta como um fio redondo e nem esmagada transparente).
+3. **Fique de Olho nos Primeiros 5 Minutos:** A imensa maioria dos erros acontece na primeira camada. Esperar a base terminar garante 90% do sucesso!
+
+---
+
+💡 **Dica de Ouro do Copilot:**
+Quando você tiver qualquer dúvida ou problema, **você não precisa saber o nome técnico**. Pode perguntar com suas próprias palavras:
+* *"a peça soltou da mesa"*
+* *"a impressora está fazendo barulho de estalo tec tec"*
+* *"ficou parecendo uma teia de aranha"*
+* *"minha peça quebrou fácil"*
+
+O Spartan 3D Copilot entende a sua descrição e te dá a solução exata passo a passo!`;
+    }
+
+    // 0.1 Sintoma Popular: Barulho de Estalo (Tec Tec) e Não Sai Plástico
+    if (
+      q.includes('tec tec') ||
+      q.includes('tac tac') ||
+      q.includes('estalo') ||
+      q.includes('estalando') ||
+      (q.includes('barulho') && (q.includes('motor') || q.includes('extrusor') || q.includes('filamento'))) ||
+      ((q.includes('nao sai') || q.includes('parou de sair')) && (q.includes('filamento') || q.includes('plastico') || q.includes('bico')))
+    ) {
+      return `### ⚙️ Diagnóstico: Barulho de Estalo ("Tec-Tec") e Bico sem Sair Plástico
+
+Esse barulho clássico de *"tec-tec-tec"* ocorre quando o motor do extrusor tenta empurrar o filamento para o bico quente, mas encontra uma resistência maior do que consegue vencer. As engrenagens começam a "patinar" no plástico.
+
+---
+
+#### 1. As 3 Causas Mais Comuns (e como resolver agora):
+1. **Bico Colado Demais na Mesa (Primeira Camada):**
+   * Se o barulho começa logo na primeira camada, o bico está tão encostado na chapa que o plástico derretido não tem espaço físico para sair.
+   * **Solução:** Suba o Z-Offset em \`+0.05 mm\` no painel da impressora para dar respiro ao fluxo.
+2. **Bico Frio Demais para o Filamento:**
+   * Se o plástico não estiver suficientemente aquecido, ele fica duro demais para passar pelo orifício de 0.4 mm.
+   * **Solução:** Aumente a temperatura do bico em **\`+5°C ou +10°C\`** (ex: no PLA, suba para 205°C ou 210°C).
+3. **Entupimento Parcial ou Total (*Clog*):**
+   * Poeira ou pedaço de filamento carbonizado acumulou dentro da ponta metálica.
+   * **Solução:** Aqueça o bico a 230°C e use a agulha de desentupimento de 0.4 mm vinda de baixo para cima, ou faça um procedimento de *Cold Pull*.
+
+---
+
+#### 2. Dica de Prevenção
+* Nunca deixe o bico aquecido acima de 200°C parado por mais de 10 minutos sem imprimir, pois o filamento parado cozinha e vira carvão dentro da garganta do bico.`;
+    }
+
+    // 0.2 Sintoma Popular: Não Gruda na Mesa ou Soltou no Meio
+    if (
+      (q.includes('grud') || q.includes('soltou') || q.includes('soltando') || q.includes('caiu') || q.includes('descolou')) &&
+      !q.includes('abs') && !q.includes('asa') && !q.includes('warping')
+    ) {
+      return `### 🧲 Diagnóstico: Peça Não Gruda ou Soltou da Mesa Durante a Impressão
+
+Não se preocupe: esse é o problema mais frequente de quem está imprimindo em 3D e é fácil de resolver!
+
+---
+
+#### 1. Passo a Passo Rápido para Grudar Perfeitamente:
+1. **Lave a Mesa com Detergente:**
+   * Retire a chapa flexível e lave na pia com água morna e 3 gotas de **detergente de louça neutro**. Use o lado macio (amarelo) da esponja.
+   * A oleosidade invisível dos dedos impede o plástico quente de aderir.
+2. **Aproxime o Bico da Mesa (Z-Offset):**
+   * Se a primeira camada está saindo redonda como um fio solto de linha, o bico está alto demais.
+   * Durante a impressão da borda inicial (*skirt/brim*), vá no menu da sua impressora em **Z-Offset (ou Babystep Z)** e diminua o valor em \`-0.02 mm\` ou \`-0.05 mm\` até a linha ficar achatada na mesa.
+3. **Temperatura da Mesa:**
+   * **PLA:** Use a mesa entre **\`55°C e 60°C\`**.
+   * **PETG:** Use a mesa entre **\`75°C e 80°C\`**.
+4. **Adicione uma Borda (Brim) no Fatiador:**
+   * No seu fatiador, ative a opção **Brim (Aba)** com 5 mm de largura. Isso cria uma "aba" ao redor da peça que aumenta muito a área de contato com a mesa.`;
+    }
+
+    // 0.3 Sintoma Popular: Fios e "Teia de Aranha"
+    if (
+      (q.includes('teia') || q.includes('aranha') || q.includes('cabelo de anjo')) ||
+      (q.includes('fios') && !q.includes('perfil') && !q.includes('retra'))
+    ) {
+      return `### 🕸️ Diagnóstico: Peça com Fios Finos ("Teia de Aranha")
+
+Esses fiozinhos chatos entre uma coluna e outra da peça acontecem quando o bico está se deslocando no ar e o plástico derretido continua gotejando da ponta.
+
+---
+
+#### 1. Como Resolver em 3 Passos Simples:
+1. **Abaixe um pouco a Temperatura:**
+   * Quando o plástico fica quente demais, ele vira quase líquido e pinga no ar.
+   * Reduza a temperatura do bico em **\`5°C\`** (ex: se estava em 215°C no PLA, coloque em 205°C ou 200°C).
+2. **Verifique a Retração (Puxada do Filamento):**
+   * A "Retração" é o movimento onde a impressora dá um leve puxão no filamento para trás antes de se mover pelo ar.
+   * Se sua impressora tiver o motor direto em cima do bico (*Direct Drive*): configure a retração entre **\`0.8 mm e 1.2 mm\`**.
+   * Se o motor fica preso no chassi com tubo de teflon longo (*Bowden*): configure entre **\`4.5 mm e 5.5 mm\`**.
+3. **Cuidado com a Umidade:**
+   * Filamentos que ficam abertos expostos ao ar absorvem água e pipocam no bico, criando fiapos. Se ouvir pequenos estalinhos enquanto imprime, o carretel precisa ser desumidificado.`;
+    }
+
+    // 0.4 Sintoma Popular: Peça Fraca / Quebrando Fácil entre Camadas
+    if (
+      q.includes('quebrando') ||
+      q.includes('quebra facil') ||
+      q.includes('fraca') ||
+      q.includes('camadas soltando')
+    ) {
+      return `### 🧱 Diagnóstico: Peça Fraca que Quebra Fácil na Mão
+
+Se a sua peça quebra facilmente ao longo das linhas horizontais, significa que a camada de cima não conseguiu se fundir termicamente com a camada de baixo.
+
+---
+
+#### 1. As 3 Soluções Mais Rápidas:
+1. **Aumente a Temperatura do Bico:**
+   * A causa número 1 de peça fraca é bico frio. O plástico sai sem calor suficiente para derreter a camada anterior.
+   * Suba a temperatura em **\`+10°C\`** (exemplo: se estiver em 195°C no PLA, suba para 205°C a 210°C).
+2. **Reduza a Ventoinha de Resfriamento:**
+   * Se a ventoinha sopra vento forte demais na ponta, o plástico gela antes de colar na camada de baixo.
+   * No fatiador, reduza a ventoinha (*Part Cooling*) para **\`60% a 70%\`**.
+3. **Aumente o Número de Paredes:**
+   * Por padrão muitas peças vêm com apenas 2 paredes. No fatiador, configure **\`3 ou 4 paredes\`** (Wall Loops) e preenchimento de **\`15% a 25%\`** com padrão Giroide (*Gyroid*). A peça fica muito mais resistente!`;
     }
 
     // 1. Misturar Filamentos: PLA com PETG / Suportes Multimateriais
