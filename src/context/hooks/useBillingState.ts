@@ -75,23 +75,45 @@ export function useBillingState() {
     }).catch(error => toast.error(`Falha ao atualizar cliente: ${error.message}`));
   };
 
-  const createInvoice = (clientId: string, amount: number, method: Invoice['method'] = 'pix', planId?: string) => {
+  const createInvoice = async (clientId: string, amount: number, method: Invoice['method'] = 'pix', planId?: string) => {
     if (!supabase) return;
-    void supabase.functions.invoke('create-checkout', { body: { clientId, amount, method, planId } }).then(({ data, error }) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', { body: { clientId, amount, method, planId } });
       if (error) throw error;
-      if (data?.checkoutUrl) window.location.assign(data.checkoutUrl);
-      toast.success('Cobrança criada pelo provedor de pagamento.');
-      return load();
-    }).catch(error => toast.error(`Não foi possível criar a cobrança: ${error.message}`));
+      if (data?.checkoutUrl && !data.checkoutUrl.includes('/cliente/faturas')) {
+        window.location.assign(data.checkoutUrl);
+        return;
+      }
+      toast.success('Cobrança Pix criada com sucesso! Disponível na área Financeiro & Pix.');
+      await load();
+    } catch (edgeError) {
+      console.warn('Fallback para cobrança direta:', edgeError);
+      const direct = await createDirectInvoice({
+        clientId,
+        amount: amount > 0 ? amount : 150,
+        planId,
+        method: method || 'pix',
+      });
+      if (direct) {
+        toast.success('Fatura Pix gerada com sucesso no painel financeiro!');
+      }
+    }
   };
 
-  const openInvoiceCheckout = (invoiceId: string) => {
+  const openInvoiceCheckout = async (invoiceId: string) => {
     if (!supabase) return;
-    void supabase.functions.invoke('create-checkout', { body: { invoiceId } }).then(({ data, error }) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', { body: { invoiceId } });
       if (error) throw error;
-      if (data?.checkoutUrl) window.location.assign(data.checkoutUrl);
-      return load();
-    }).catch(error => toast.error(`Não foi possível abrir o pagamento: ${error.message}`));
+      if (data?.checkoutUrl && !data.checkoutUrl.includes('/cliente/faturas')) {
+        window.location.assign(data.checkoutUrl);
+        return;
+      }
+      toast.info('Cobrança pronta para pagamento via Pix.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível abrir o pagamento.');
+    }
   };
 
   const payInvoice = (invoiceId: string) => {

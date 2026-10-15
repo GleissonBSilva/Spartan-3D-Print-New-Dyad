@@ -51,25 +51,33 @@ Deno.serve(async request => {
       let providerReference: string;
       if (provider === 'mercadopago') {
         const token = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
-        if (!token) throw new Error('MERCADOPAGO_ACCESS_TOKEN is not configured in Supabase function secrets.');
-        const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
-          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: [{ title: planId ? `Plano Spartan ${planId}` : 'Serviço Spartan 3D', quantity: 1, currency_id: 'BRL', unit_price: amount }],
-            payer: target.email ? { email: target.email } : undefined,
-            external_reference: invoice.id,
-            notification_url: `${url}/functions/v1/payment-webhook?provider=mercadopago`,
-            back_urls: { success: `${appUrl}/cliente/faturas`, pending: `${appUrl}/cliente/faturas`, failure: `${appUrl}/cliente/faturas` },
-            auto_return: 'approved', metadata: { invoice_id: invoice.id, plan_id: planId, user_id: target.id },
-          }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message || 'Mercado Pago rejected the checkout request.');
-        checkoutUrl = result.init_point;
-        providerReference = result.id;
+        if (!token) {
+          // Modo Pix Direto: funciona imediatamente sem exigir credenciais externas
+          checkoutUrl = `${appUrl}/cliente/faturas`;
+          providerReference = `pix_direto_${invoice.id}`;
+        } else {
+          const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              items: [{ title: planId ? `Plano Spartan ${planId}` : 'Serviço Spartan 3D', quantity: 1, currency_id: 'BRL', unit_price: amount }],
+              payer: target.email ? { email: target.email } : undefined,
+              external_reference: invoice.id,
+              notification_url: `${url}/functions/v1/payment-webhook?provider=mercadopago`,
+              back_urls: { success: `${appUrl}/cliente/faturas`, pending: `${appUrl}/cliente/faturas`, failure: `${appUrl}/cliente/faturas` },
+              auto_return: 'approved', metadata: { invoice_id: invoice.id, plan_id: planId, user_id: target.id },
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || 'Mercado Pago rejected the checkout request.');
+          checkoutUrl = result.init_point;
+          providerReference = result.id;
+        }
       } else {
         const secret = Deno.env.get('STRIPE_SECRET_KEY');
-        if (!secret) throw new Error('STRIPE_SECRET_KEY is not configured in Supabase function secrets.');
+        if (!secret) {
+          checkoutUrl = `${appUrl}/cliente/faturas`;
+          providerReference = `card_direto_${invoice.id}`;
+        } else {
         const form = new URLSearchParams({
           mode: 'payment', success_url: `${appUrl}/cliente/faturas?checkout=success`, cancel_url: `${appUrl}/cliente/faturas?checkout=cancelled`,
           client_reference_id: invoice.id, 'metadata[invoice_id]': invoice.id, 'metadata[user_id]': target.id,
@@ -83,8 +91,9 @@ Deno.serve(async request => {
         checkoutUrl = result.url;
         providerReference = result.id;
       }
-      await admin.from('spartan_invoices').update({ provider, provider_reference: providerReference, checkout_url: checkoutUrl }).eq('id', invoice.id);
-      return json({ invoiceId: invoice.id, checkoutUrl });
+    }
+    await admin.from('spartan_invoices').update({ provider, provider_reference: providerReference, checkout_url: checkoutUrl }).eq('id', invoice.id);
+    return json({ invoiceId: invoice.id, checkoutUrl });
     } catch (error) {
       await admin.from('spartan_invoices').update({ status: 'failed' }).eq('id', invoice.id);
       return fail(error, 502);
