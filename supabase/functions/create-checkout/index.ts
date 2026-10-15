@@ -30,8 +30,12 @@ Deno.serve(async request => {
     }
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) return fail('Invalid amount.');
     if (!['pix', 'credit_card', 'boleto'].includes(method)) return fail('Unsupported payment method.');
-    const { data: caller } = await admin.from('spartan_profiles').select('role').eq('id', auth.user.id).single();
-    if (targetId !== auth.user.id && caller?.role !== 'admin') return fail('Not allowed to create a charge for this customer.', 403);
+    const [{ data: caller }, { data: platformAccess }] = await Promise.all([
+      admin.from('spartan_profiles').select('role').eq('id', auth.user.id).single(),
+      admin.from('spartan_platform_access').select('access_role').eq('user_id', auth.user.id),
+    ]);
+    const isPlatformAdmin = caller?.role === 'admin' || (platformAccess || []).some((r: any) => r.access_role === 'admin' || r.access_role === 'developer');
+    if (targetId !== auth.user.id && !isPlatformAdmin) return fail('Not allowed to create a charge for this customer.', 403);
     const { data: target, error: targetError } = await admin.from('spartan_profiles').select('id, company_id, email').eq('id', targetId).single();
     if (targetError || !target) return fail('Customer not found.', 404);
     const provider = method === 'credit_card' ? 'stripe' : 'mercadopago';
