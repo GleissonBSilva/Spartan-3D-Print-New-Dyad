@@ -6,10 +6,49 @@ import { fail, json, preflight } from '../_shared/cors.ts';
  * Garante respostas técnicas aprofundadas, exatas e personalizadas para qualquer dúvida
  */
 function generateSpecialized3DAnswer(question: string): string {
-  const q = question.toLowerCase();
+  const rawQ = question.toLowerCase();
+  // Normaliza termos técnicos e erros comuns de digitação
+  const q = rawQ
+    .replace(/pteg/g, 'petg')
+    .replace(/pétg/g, 'petg')
+    .replace(/pla\+/g, 'pla plus')
+    .replace(/orcaslicer/g, 'orca')
+    .replace(/cura/g, 'cura')
+    .replace(/bambu/g, 'bambu');
 
-  // 1. Diagnóstico de PETG e Stringing (Fiapos)
-  if ((q.includes('petg') && (q.includes('string') || q.includes('fiapo') || q.includes('teia') || q.includes('calibr'))) || (q.includes('string') && q.includes('orcaslicer'))) {
+  // 1. Misturar Filamentos (PLA com PETG / Multimaterial / Suportes)
+  if ((q.includes('pla') && q.includes('petg')) || (q.includes('mistur') && (q.includes('filamento') || q.includes('material')))) {
+    return `### 🔬 Análise Técnica: É Possível Misturar Filamento PLA com PETG?
+
+A resposta direta é: **Depende da finalidade.** Eles **NÃO se fundem para criar peças sólidas**, mas são considerados o **"Santo Graal" para suportes destacáveis**.
+
+---
+
+#### 1. Para Peças Sólidas Estruturais (Mesma Peça): ❌ NÃO FUNCIONA
+* **Incompatibilidade Química:** O PLA (ácido polilático) e o PETG (polietileno tereftalato glicol) possuem composições moleculares que **não criam ligação intermolecular**. 
+* Se você tentar imprimir camadas alternadas ou fundi-los na mesma peça, ela **delaminará e se partirá com o menor esforço**, pois a adesão entre as camadas de PLA e PETG é praticamente nula.
+* **Diferença de Temperatura:** O PLA imprime entre \`195°C e 215°C\`, enquanto o PETG exige entre \`230°C e 245°C\`. Isso causa degradação térmica do PLA e subextrusão do PETG se tentados na mesma temperatura.
+
+---
+
+#### 2. Para Suporte de Interface (Zero-Gap Support): ✅ É A MELHOR COMBINAÇÃO DO MUNDO!
+* Como o PLA e o PETG não colam um no outro, essa é uma das técnicas mais avançadas da impressão 3D em impressoras com troca de filamento (Bambu Lab AMS, ERCF, dual extruder)!
+* **Como configurar no OrcaSlicer / Bambu Studio:**
+  1. Configure o corpo principal do suporte com o mesmo material da peça (para economizar trocas).
+  2. Configure apenas a **"Camada de Interface do Suporte" (Support Interface)** com o outro material (ex: Peça em PETG com Interface em PLA, ou vice-versa).
+  3. Ajuste a **Distância Z Superior (Top Z-Distance)** para **\`0.0 mm\` (Zero Gap)**.
+* **Resultado:** A parte inferior da peça fica com acabamento perfeito de primeira camada e o suporte se solta inteiro sem esforço com uma chave, sem deixar nenhuma marca!
+
+---
+
+#### 3. Cuidados na Transição (Torre de Purga)
+* Se usar sistema multicolor/multimaterial:
+  * Aumente o **volume de purga (Flushing Volume)** na troca para pelo menos **\`380 a 480 mm³\`**.
+  * Se sobrar qualquer resquício de PLA dentro do bico na hora de imprimir PETG estrutural, a peça sofrerá fraqueza mecânica interna naquele ponto.`;
+  }
+
+  // 2. Diagnóstico de PETG e Stringing (Fiapos / Teias)
+  if (q.includes('petg') && (q.includes('string') || q.includes('fiapo') || q.includes('teia') || q.includes('calibr') || q.includes('orca'))) {
     return `### 🛠️ Diagnóstico Técnico: Resolução de Stringing em PETG no OrcaSlicer
 
 O **PETG** possui alta viscosidade e é extremamente higroscópico, o que torna o controle de escorrimento (*oozing*) e retração crítico.
@@ -42,7 +81,7 @@ O **PETG** possui alta viscosidade e é extremamente higroscópico, o que torna 
 * Se você ouvir estalos discretos durante a impressão, o filamento absorveu umidade do ar. Desumidifique a bobina a **\`65°C por 6 horas\`** antes de reimprimir.`;
   }
 
-  // 2. Diagnóstico de Warping (Descolamento) em ABS / ASA
+  // 3. Diagnóstico de Warping (Descolamento) em ABS / ASA
   if (q.includes('abs') || q.includes('asa') || (q.includes('warping') || q.includes('descol') || q.includes('empen'))) {
     return `### 🛡️ Diagnóstico Técnico: Prevenção de Warping (Descolamento) em ABS/ASA
 
@@ -70,7 +109,7 @@ O encolhimento térmico volumétrico do **ABS** pode chegar a 1,5%, causando con
 * **Adição de Brim (Aba):** Configure no fatiador um Brim externo de **\`8 a 12 mm\`** com distância de separação (\`Brim-object gap\`) de \`0.1 mm\`.`;
   }
 
-  // 3. Impressão com TPU e Filamentos Flexíveis
+  // 4. Impressão com TPU e Filamentos Flexíveis
   if (q.includes('tpu') || q.includes('flex')) {
     return `### 🌀 Guia Especialista: Configurações de Impressão para TPU 95A / Flexíveis
 
@@ -98,7 +137,7 @@ Filamentos flexíveis possuem comportamento viscoelástico e tendem a dobrar ou 
 * ⚠️ **Atenção à Adesão Excessiva:** O TPU gruda muito forte no PEI liso. Aplique uma camada leve de cola bastão como **agente desmoldante** para não danificar o revestimento da chapa ao remover a peça.`;
   }
 
-  // 4. Precificação e Orçamento B2B
+  // 5. Precificação e Orçamento B2B
   if (q.includes('precific') || q.includes('orçamento') || q.includes('orcamento') || q.includes('cobrar') || q.includes('preço') || q.includes('preco') || q.includes('b2b') || q.includes('custo')) {
     return `### 💰 Estratégia de Precificação Industrial & Orçamento B2B (Peça 3D)
 
@@ -127,8 +166,8 @@ Para precificar com segurança e obter lucro previsível em lotes B2B, utilize a
   * 4 a 10 unidades: R$ 225,00/unid (diluição do tempo de setup e fatiamento).`;
   }
 
-  // 5. Clogging / Entupimento
-  if (q.includes('entup') || q.includes('clog') || q.includes('falha de extrusão') || q.includes('estalos')) {
+  // 6. Clogging / Entupimento
+  if (q.includes('entup') || q.includes('clog') || q.includes('falha de extrusão') || q.includes('estalos') || q.includes('bico entupido')) {
     return `### 🔧 Diagnóstico Técnico: Desobstrução e Resolução de Clogging no Hotend
 
 ---
@@ -145,7 +184,25 @@ Para precificar com segurança e obter lucro previsível em lotes B2B, utilize a
 * O acúmulo de poeira nas aletas de refrigeração impede a troca de calor e faz o filamento expandir antes da zona de fusão.`;
   }
 
-  // 6. Diagnóstico Estratégico de MRR / SaaS
+  // 7. Aderência na Mesa / Primeira Camada / Z-Offset
+  if (q.includes('adesão') || q.includes('adesao') || q.includes('primeira camada') || q.includes('z-offset') || q.includes('descolando')) {
+    return `### 🎯 Diagnóstico Técnico: Aderência Perfeita de Primeira Camada e Z-Offset
+
+---
+
+#### 1. Ajuste Fino do Z-Offset
+* Execute uma impressão de teste de camada única (Single Layer Square).
+* Se as linhas estiverem separadas: **o bico está muito alto**, abaixe o Z-offset em passos de \`-0.02 mm\`.
+* Se o bico estiver arranhando a mesa ou criando rebarbas transparentes: **o bico está muito baixo**, eleve o Z-offset em passos de \`+0.02 mm\`.
+
+---
+
+#### 2. Preparação da Chapa PEI
+* Lave a chapa periodicamente com água morna e detergente neutro (a oleosidade dos dedos é a causa número 1 de peças descolando).
+* Finalize passando álcool isopropílico 99% com papel toalha sem fiapos antes de cada impressão.`;
+  }
+
+  // 8. Diagnóstico Estratégico de MRR / SaaS
   if (q.includes('mrr') || q.includes('churn') || q.includes('receita') || q.includes('faturamento') || q.includes('retenção')) {
     return `### 📊 Diagnóstico Estratégico de Gestão & Faturamento (Spartan 3D)
 
@@ -157,24 +214,18 @@ Para precificar com segurança e obter lucro previsível em lotes B2B, utilize a
 * Acompanhe a regularização imediata de clientes atrasados para restabelecer o acesso assim que a fatura for confirmada.`;
   }
 
-  // 7. Resposta técnica abrangente para qualquer outra dúvida de impressão 3D
-  return `### 💡 Solução Técnica Especializada Spartan 3D
+  // 9. Resposta técnica contextual geral para qualquer outra dúvida de impressão 3D
+  return `### 💡 Solução Especializada Spartan 3D
 
-Para a solicitação:
+Para a dúvida apresentada:
 > **"${question}"**
 
 ---
 
-#### 1. Parâmetros Operacionais Recomendados
-* **Calibração de Primeira Camada:** Verifique o Z-offset executando uma linha de purga uniforme. O filamento deve ficar ligeiramente achatado (sem transparência excessiva e sem formar cordões soltos).
-* **Velocidade de Paredes:** Mantenha as paredes externas a **\`40-60 mm/s\`** para assegurar precisão dimensional e acabamento superficial brilhante.
-* **Preenchimento:** Utilize padrões estruturais como **Gyroid** ou **Cubic** com densidade de 15% a 25% para máxima resistência mecânica isotrópica com menor consumo de material.
-
----
-
-#### 2. Manutenção Preventiva da Máquina
-* Limpe as guias lineares e eixos Z com pano sem fiapos e lubrifique com graxa de lítio ou óleo PTFE a cada 200 horas de impressão.
-* Reaperte os parafusos do bloco aquecedor do hotend a quente (\`250°C\`) para evitar vazamentos na rosca do bico.`;
+#### 1. Recomendações de Parâmetros
+* **Temperatura e Fluidez:** Certifique-se de que a temperatura do bico esteja calibrada para a velocidade de fluxo volumétrico (\`mm³/s\`) da sua impressora. Impressões de alta velocidade (acima de 150 mm/s) exigem de 5°C a 10°C a mais no bico.
+* **Resfriamento e Aderência:** Mantenha a primeira camada impressa mais quente e sem ventilação para ancoragem perfeita.
+* **Paredes e Perímetros:** Utilize no mínimo 3 paredes (\`1.2 mm\` em bico 0.4) para obter integridade mecânica estanque.`;
 }
 
 Deno.serve(async request => {
@@ -208,8 +259,8 @@ Deno.serve(async request => {
     const question = String(body.question || body.prompt || '').trim();
     if (!question || question.length > 4000) return fail('Question must contain 1 to 4000 characters.');
 
-    const groqKey = Deno.env.get('GROQ_API_KEY');
-    const openAiKey = Deno.env.get('OPENAI_API_KEY');
+    const groqKey = Deno.env.get('GROQ_API_KEY')?.trim();
+    const openAiKey = Deno.env.get('OPENAI_API_KEY')?.trim();
     const apiKey = groqKey || openAiKey;
     const isGroq = Boolean(groqKey && !openAiKey);
     const apiUrl = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
@@ -255,6 +306,7 @@ Deno.serve(async request => {
     let finalAnswer = '';
     let usedModel = candidateModels[0];
     let tokensCount = 0;
+    let lastError = '';
 
     // Tenta obter resposta da API externa com fallback automático entre modelos
     for (const model of candidateModels) {
@@ -264,6 +316,7 @@ Deno.serve(async request => {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
+            'User-Agent': 'Spartan3D/1.0',
           },
           body: JSON.stringify({
             model,
@@ -293,16 +346,18 @@ Deno.serve(async request => {
           }
         } else {
           const errText = await response.text();
+          lastError = `Status ${response.status}: ${errText}`;
           console.warn(`Tentativa no modelo ${model} retornou ${response.status}: ${errText}`);
         }
       } catch (callError) {
+        lastError = callError instanceof Error ? callError.message : String(callError);
         console.warn(`Erro na chamada ao modelo ${model}:`, callError);
       }
     }
 
     // Se nenhum modelo externo respondeu com sucesso, utiliza o motor especializado da Spartan
     if (!finalAnswer) {
-      console.log('Utilizando motor especializado Spartan 3D como resposta');
+      console.log('Utilizando motor especializado Spartan 3D como resposta. Ultimo erro da API:', lastError);
       finalAnswer = generateSpecialized3DAnswer(question);
       usedModel = 'spartan-3d-expert-engine';
       tokensCount = 450;
@@ -322,6 +377,7 @@ Deno.serve(async request => {
       model: usedModel,
       tokensUsed: tokensCount,
       creditsRemaining,
+      lastError: isPlatformAdmin ? lastError : undefined,
     });
   } catch (error) {
     return fail(error instanceof Error ? error.message : 'Internal Server Error', 500);

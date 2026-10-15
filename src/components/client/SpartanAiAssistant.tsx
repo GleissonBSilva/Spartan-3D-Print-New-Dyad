@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 export const SpartanAiAssistant: React.FC = () => {
   const [pergunta, setPergunta] = useState('');
   const [resposta, setResposta] = useState<string | null>(null);
+  const [modeloUsado, setModeloUsado] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
@@ -45,6 +46,7 @@ export const SpartanAiAssistant: React.FC = () => {
 
       const botReply = data?.answer || data?.reply || data?.choices?.[0]?.message?.content || "Sem resposta gerada.";
       setResposta(botReply);
+      setModeloUsado(data?.model || null);
       toast.success('Diagnóstico gerado com sucesso!');
     } catch (error) {
       console.error(error);
@@ -64,6 +66,7 @@ export const SpartanAiAssistant: React.FC = () => {
 
   const handleLimpar = () => {
     setResposta(null);
+    setModeloUsado(null);
   };
 
   return (
@@ -143,9 +146,16 @@ export const SpartanAiAssistant: React.FC = () => {
           {resposta && !carregando && (
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 animate-in fade-in duration-300">
               <div className="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
-                <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Resposta da IA Spartan:
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Resposta da IA Spartan:
+                  </span>
+                  {modeloUsado && (
+                    <Badge variant="outline" className="text-[10px] text-indigo-300 border-indigo-500/30 bg-indigo-500/10 py-0 px-2 h-5">
+                      {modeloUsado}
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
                   <Button
                     size="sm"
