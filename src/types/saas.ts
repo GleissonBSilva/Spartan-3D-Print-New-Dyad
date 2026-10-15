@@ -149,6 +149,9 @@ export interface ProjetoImpressao3D {
   custoEmbalagem?: number;
   custoBrinde?: number;
   valorFrete?: number;
+  formaPagamento?: 'pix' | 'credito' | 'debito' | 'dinheiro';
+  parcelasCartao?: number;
+  detalhesPagamento?: string;
 }
 
 export interface Invoice {

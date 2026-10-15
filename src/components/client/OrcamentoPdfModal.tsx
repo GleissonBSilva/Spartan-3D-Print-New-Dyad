@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Printer, Send, Image as ImageIcon } from 'lucide-react';
 import { ProjetoImpressao3D } from '@/types/saas';
 import { useAuth } from '@/context/AuthContext';
+import { PaymentMethodsService } from '@/services/paymentMethodsService';
 import { toast } from 'sonner';
 
 interface OrcamentoPdfModalProps {
@@ -48,12 +49,47 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
     projeto.image ||
     projeto.url;
 
+  // Configurações de pagamento da Farm
+  const settings = PaymentMethodsService.loadPaymentSettings();
+  const downPaymentPercent = settings.downPaymentPercent || 50;
+  const totalCobrado = projeto.precoCobrado || 0;
+  const downPaymentAmount = Number(((totalCobrado * downPaymentPercent) / 100).toFixed(2));
+  const remainingAmount = Math.max(0, Number((totalCobrado - downPaymentAmount).toFixed(2)));
+
+  // Determinar texto descritivo da forma de pagamento
+  const paymentMethodLabel = (() => {
+    if (projeto.detalhesPagamento) return projeto.detalhesPagamento;
+    if (projeto.formaPagamento === 'pix') {
+      return settings.pixDiscountPercent > 0
+        ? `PIX à Vista (${settings.pixDiscountPercent}% de desconto)`
+        : 'PIX à Vista';
+    }
+    if (projeto.formaPagamento === 'credito') {
+      const n = projeto.parcelasCartao || 1;
+      return n > 1 ? `Cartão de Crédito em ${n}x` : 'Cartão de Crédito à Vista';
+    }
+    if (projeto.formaPagamento === 'debito') {
+      return 'Cartão de Débito';
+    }
+    if (projeto.formaPagamento === 'dinheiro') {
+      return settings.cashDiscountPercent > 0
+        ? `Dinheiro / Espécie (${settings.cashDiscountPercent}% de desconto)`
+        : 'Dinheiro / Espécie';
+    }
+    return 'PIX / Cartão de Crédito / Débito / Dinheiro';
+  })();
+
   const handlePrint = () => window.print();
 
   const handleSendWhatsapp = () => {
     const materialsDesc = materials.length
       ? materials.map((m, i) => `${i + 1}. ${m.filamentType} ${m.color} — ${m.weightGrams}g`).join('\n')
       : `${projeto.filamentoUtilizado || 'Material a confirmar'} — ${projeto.pesoEstimadoG || '—'}g`;
+
+    const paymentLine = `Forma de Pagamento: ${paymentMethodLabel}`;
+    const pixKeyLine = (settings.pixKey && (projeto.formaPagamento === 'pix' || !projeto.formaPagamento))
+      ? `Chave Pix (${settings.pixKeyType}): ${settings.pixKey}${settings.pixBeneficiary ? ` (${settings.pixBeneficiary})` : ''}\n`
+      : '';
     
     const text = encodeURIComponent(
       `ORÇAMENTO COMERCIAL #${reference} — ${companyName}\n\n` +
@@ -64,7 +100,9 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
       `Impressora: ${projeto.impressoraNome || 'A definir'}\n\n` +
       `Materiais:\n${materialsDesc}\n\n` +
       `Total Geral: ${money(projeto.precoCobrado)}\n` +
-      `Condições: 50% de sinal para início da produção (não reembolsável para insumos/setup).\n` +
+      `${paymentLine}\n` +
+      pixKeyLine +
+      `Condições: Sinal de ${downPaymentPercent}% (${money(downPaymentAmount)}) para início da produção (restante ${money(remainingAmount)} na entrega).\n` +
       `Validade: 7 dias úteis`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener,noreferrer');
@@ -305,9 +343,17 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
               3. Forma de Pagamento & Condições Comerciais
             </h2>
             
-            <div className="flex justify-between items-center text-xs bg-gray-50 p-2.5 rounded border border-gray-200">
-              <span className="font-semibold text-gray-800">PIX / Cartão de Crédito (À Vista ou Parcelado)</span>
-              <strong className="text-gray-900 font-mono text-sm">{money(projeto.precoCobrado)}</strong>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs bg-gray-50 p-2.5 rounded border border-gray-200 gap-2">
+              <div>
+                <span className="font-semibold text-gray-800 block">{paymentMethodLabel}</span>
+                {settings.pixKey && (projeto.formaPagamento === 'pix' || !projeto.formaPagamento) && (
+                  <p className="text-[11px] text-gray-600 font-mono mt-0.5">
+                    Chave Pix ({settings.pixKeyType}): <strong>{settings.pixKey}</strong>
+                    {settings.pixBeneficiary && ` · Titular: ${settings.pixBeneficiary}`}
+                  </p>
+                )}
+              </div>
+              <strong className="text-gray-900 font-mono text-sm whitespace-nowrap">{money(projeto.precoCobrado)}</strong>
             </div>
 
             <div className="text-[11px] text-gray-600 bg-amber-50/60 border border-amber-200/80 rounded-md p-2.5 space-y-1">
@@ -315,7 +361,7 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
                 • Condições de Início de Produção:
               </p>
               <p>
-                Solicitamos um adiantamento de <strong>50% do valor total</strong> no ato da aprovação para garantia de reserva de maquinário e aquisição de insumos/materiais.
+                Solicitamos um adiantamento (sinal) de <strong>{downPaymentPercent}% do valor total ({money(downPaymentAmount)})</strong> no ato da aprovação para garantia de reserva de maquinário e aquisição de insumos/materiais. O valor restante ({money(remainingAmount)}) será pago na entrega da peça.
               </p>
               <p className="text-amber-950 font-medium pt-0.5">
                 ⚠️ <em>Nota: O valor do adiantamento não será reembolsável em caso de cancelamento após a aprovação, pois destina-se ao custeio direto de matéria-prima e setup de produção.</em>

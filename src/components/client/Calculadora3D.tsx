@@ -12,6 +12,13 @@ import { MultiMaterialSelector } from './calculator/MultiMaterialSelector';
 import { ProductionCostParams } from './calculator/ProductionCostParams';
 import { PricingSummaryCard } from './calculator/PricingSummaryCard';
 import { VariationsGrid } from './calculator/VariationsGrid';
+import { PaymentMethodSelector } from './calculator/PaymentMethodSelector';
+import {
+  PaymentMethodsService,
+  PaymentMethodType,
+  FarmPaymentSettings,
+  PaymentCalculationResult,
+} from '@/services/paymentMethodsService';
 import { GcodeAnalyzerModal } from './GcodeAnalyzerModal';
 import { OrcamentoPdfModal } from './OrcamentoPdfModal';
 import { toast } from 'sonner';
@@ -44,6 +51,27 @@ export const Calculadora3D: React.FC = () => {
   const [custoEmbalagem, setCustoEmbalagem] = useState<number | string>(sourceProject?.custoEmbalagem ?? '');
   const [custoBrinde, setCustoBrinde] = useState<number | string>(sourceProject?.custoBrinde ?? '');
   const [valorFrete, setValorFrete] = useState<number | string>(sourceProject?.valorFrete ?? '');
+
+  // Forma de Pagamento e Condições Comerciais (Crédito, Dinheiro, Pix, Débito)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType>(
+    sourceProject?.formaPagamento || 'pix'
+  );
+  const [selectedInstallments, setSelectedInstallments] = useState<number>(
+    sourceProject?.parcelasCartao || 1
+  );
+  const [paymentSettings, setPaymentSettings] = useState<FarmPaymentSettings>(() =>
+    PaymentMethodsService.getSettings()
+  );
+
+  const refreshPaymentSettings = () => {
+    setPaymentSettings(PaymentMethodsService.getSettings());
+  };
+
+  useEffect(() => {
+    const handleSettingsUpdated = () => refreshPaymentSettings();
+    window.addEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
+    return () => window.removeEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
+  }, []);
 
   // Parâmetros Financeiros e Operacionais (Mantidos os padrões operacionais da farm)
   const [tarifaKwh, setTarifaKwh] = useState(0.85);
@@ -181,6 +209,16 @@ export const Calculadora3D: React.FC = () => {
     taxaFalhaPorcento, custoMaoDeObra, outrosCustos, margemLucroPorcento,
     quantidadeLote, modoVenda, descontoAtacado, custoEmbalagem, custoBrinde, valorFrete
   ]);
+
+  // Impacto da Forma de Pagamento (Desconto ou Taxa) sobre o Preço Final
+  const paymentResult: PaymentCalculationResult = useMemo(() => {
+    return PaymentMethodsService.calculatePaymentEffect(
+      calculationResult.suggestedPrice,
+      selectedPaymentMethod,
+      selectedInstallments,
+      paymentSettings
+    );
+  }, [calculationResult.suggestedPrice, selectedPaymentMethod, selectedInstallments, paymentSettings]);
 
   // Simulação de Variações de 1 a 4 Cores
   const variations = useMemo(() => {
@@ -337,6 +375,11 @@ export const Calculadora3D: React.FC = () => {
       if (imageFile && !user?.companyId) throw new Error('Sua conta não está vinculada a uma empresa.');
       const imagePath = imageFile && user?.companyId ? await uploadModelFile(imageFile, user.companyId) : undefined;
       
+      const finalPriceToSave = hasSimulationData ? paymentResult.finalPrice : calculationResult.suggestedPrice;
+      const finalProfitToSave = hasSimulationData
+        ? Number((finalPriceToSave - calculationResult.totalProductionCost - (Number(valorFrete) || 0)).toFixed(2))
+        : 0;
+
       const projectData = {
         nomePeca,
         clienteNome,
@@ -356,8 +399,8 @@ export const Calculadora3D: React.FC = () => {
         outrosCustos,
         custoTotal: calculationResult.totalProductionCost,
         margemLucroPercentual: margemLucroPorcento,
-        precoCobrado: calculationResult.suggestedPrice,
-        lucroLiquido: calculationResult.estimatedProfit,
+        precoCobrado: finalPriceToSave,
+        lucroLiquido: finalProfitToSave,
         status: recalculateProject ? status : status,
         observacoes,
         arquivoPath: uploadedFilePath || sourceProject?.arquivoPath,
@@ -368,7 +411,10 @@ export const Calculadora3D: React.FC = () => {
         descontoAtacado: descontoAtacado === '' ? 0 : Number(descontoAtacado) || 0,
         custoEmbalagem: custoEmbalagem === '' ? 0 : Number(custoEmbalagem) || 0,
         custoBrinde: custoBrinde === '' ? 0 : Number(custoBrinde) || 0,
-        valorFrete: valorFrete === '' ? 0 : Number(valorFrete) || 0
+        valorFrete: valorFrete === '' ? 0 : Number(valorFrete) || 0,
+        formaPagamento: selectedPaymentMethod,
+        parcelasCartao: selectedPaymentMethod === 'credito' ? selectedInstallments : 1,
+        detalhesPagamento: paymentResult.summaryText,
       };
 
       let success = false;
@@ -593,7 +639,23 @@ export const Calculadora3D: React.FC = () => {
             </div>
             {/* ========================================== */}
 
-            {/* 3. MATERIAIS & CORES */}
+            {/* ========================================== */}
+            {/* 3. FORMA DE PAGAMENTO & CONDIÇÕES COMERCIAIS */}
+            {/* ========================================== */}
+            <PaymentMethodSelector
+              selectedMethod={selectedPaymentMethod}
+              selectedInstallments={selectedInstallments}
+              basePrice={calculationResult.suggestedPrice}
+              paymentSettings={paymentSettings}
+              onSelectMethod={setSelectedPaymentMethod}
+              onSelectInstallments={setSelectedInstallments}
+              onUpdateSettings={(newSettings) => {
+                setPaymentSettings(newSettings);
+                PaymentMethodsService.savePaymentSettings(newSettings);
+              }}
+            />
+
+            {/* 4. MATERIAIS & CORES */}
             <MultiMaterialSelector 
               filamentos={filamentos} 
               materials={materials} 
@@ -602,7 +664,7 @@ export const Calculadora3D: React.FC = () => {
               onUpdateMaterial={handleUpdateMaterial}
             />
 
-            {/* 4. CUSTOS OPERACIONAIS */}
+            {/* 5. CUSTOS OPERACIONAIS */}
             <ProductionCostParams 
               custoMaoDeObra={custoMaoDeObra} 
               depreciacaoHora={depreciacaoHora} 
@@ -622,6 +684,7 @@ export const Calculadora3D: React.FC = () => {
           <div>
             <PricingSummaryCard 
               calculationResult={calculationResult} 
+              paymentResult={paymentResult}
               nomePeca={nomePeca} 
               taxaFalhaPorcento={taxaFalhaPorcento}
               hasSimulationData={hasSimulationData}
@@ -665,7 +728,10 @@ export const Calculadora3D: React.FC = () => {
           filamentoUtilizado: materials.map(m => `${m.filamentType} ${m.color} (${m.weightGrams}g)`).join(' + '),
           pesoEstimadoG: calculationResult.totalWeightGrams,
           tempoEstimadoHoras: parseTimeStringToDecimal(tempoHoras),
-          precoCobrado: calculationResult.suggestedPrice,
+          precoCobrado: hasSimulationData ? paymentResult.finalPrice : calculationResult.suggestedPrice,
+          formaPagamento: selectedPaymentMethod,
+          parcelasCartao: selectedPaymentMethod === 'credito' ? selectedInstallments : 1,
+          detalhesPagamento: paymentResult.summaryText,
         }}
       />
     </div>

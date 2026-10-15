@@ -3,14 +3,16 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Layers, Zap, Save, CheckCircle2, Truck, AlertCircle } from 'lucide-react';
+import { DollarSign, Layers, Zap, Save, CheckCircle2, Truck, AlertCircle, Sparkles } from 'lucide-react';
 import { PricingCalculationResult } from '@/services/pricingService';
+import { PaymentCalculationResult } from '@/services/paymentMethodsService';
 
 interface PricingSummaryCardProps {
   nomePeca: string;
   calculationResult: PricingCalculationResult & { valorFrete?: number };
   taxaFalhaPorcento: number;
   hasSimulationData?: boolean;
+  paymentResult?: PaymentCalculationResult;
   onSalvarOrcamento: () => void;
   onAprovarProducao: () => void;
   saving?: boolean;
@@ -23,12 +25,19 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
   calculationResult,
   taxaFalhaPorcento,
   hasSimulationData = true,
+  paymentResult,
   onSalvarOrcamento,
   onAprovarProducao,
   saving = false,
   recalculating = false,
   copying = false,
 }) => {
+  const displayPrice = hasSimulationData
+    ? paymentResult
+      ? paymentResult.finalPrice
+      : calculationResult.suggestedPrice
+    : 0;
+
   return (
     <Card className="bg-slate-900 border-slate-800 rounded-2xl p-5 space-y-4">
       <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
@@ -97,6 +106,19 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
             R$ {(calculationResult.valorFrete || 0).toFixed(2)}
           </span>
         </div>
+
+        {/* Impacto da Forma de Pagamento (se houver desconto ou taxa) */}
+        {hasSimulationData && paymentResult && paymentResult.adjustmentAmount !== 0 && (
+          <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-800/50">
+            <span className={`flex items-center gap-1 ${paymentResult.adjustmentType === 'discount' ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <Sparkles className="w-3.5 h-3.5" />
+              {paymentResult.adjustmentType === 'discount' ? 'Desconto' : 'Taxa'} ({paymentResult.methodName} {paymentResult.adjustmentPercent}%):
+            </span>
+            <span className={`font-bold ${paymentResult.adjustmentType === 'discount' ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {paymentResult.adjustmentType === 'discount' ? '- ' : '+ '}R$ {Math.abs(paymentResult.adjustmentAmount).toFixed(2)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Total e Preço */}
@@ -119,8 +141,18 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
           <span className="text-xs font-bold text-white uppercase">Preço Final:</span>
           <div className="text-right">
             <span className={`text-2xl font-black ${hasSimulationData ? 'text-indigo-400' : 'text-slate-500'}`}>
-              R$ {(hasSimulationData ? calculationResult.suggestedPrice : 0).toFixed(2)}
+              R$ {displayPrice.toFixed(2)}
             </span>
+            {hasSimulationData && paymentResult && paymentResult.method === 'credito' && paymentResult.installments > 1 && (
+              <span className="block text-[11px] text-indigo-300 font-bold">
+                {paymentResult.installments}x de R$ {paymentResult.installmentValue.toFixed(2)}
+              </span>
+            )}
+            {hasSimulationData && paymentResult && (
+              <span className="block text-[10px] text-slate-400">
+                {paymentResult.methodName}
+              </span>
+            )}
             {!hasSimulationData && (
               <span className="block text-[10px] text-amber-400/80 font-medium">
                 (Aguardando tempo e peso)
@@ -128,6 +160,15 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
             )}
           </div>
         </div>
+
+        {hasSimulationData && paymentResult && paymentResult.downPaymentAmount > 0 && (
+          <div className="flex justify-between items-center text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+            <span>Sinal de Entrada ({paymentResult.downPaymentPercent}%):</span>
+            <strong className="text-purple-300 font-bold">
+              R$ {paymentResult.downPaymentAmount.toFixed(2)}
+            </strong>
+          </div>
+        )}
       </div>
 
       {/* Botões de Ação com Fluxo do Estoque */}

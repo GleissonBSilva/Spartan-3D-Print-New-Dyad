@@ -22,15 +22,49 @@ type ProjectRow = {
   image_path: string | null;
   quantity: number; due_date: string | null;
 };
-const fromRow = (row: ProjectRow): ProjetoImpressao3D => ({
-  id: row.id, nomePeca: row.part_name, clienteNome: row.customer_name, impressoraId: row.printer_id || undefined,
-  pesoEstimadoG: Number(row.estimated_weight_g), tempoEstimadoHoras: Number(row.estimated_hours), quantidade: Number(row.quantity || 1), dataEntrega: row.due_date || undefined, materials: row.materials || [],
-  custoMaterial: Number(row.material_cost), custoEnergia: Number(row.energy_cost), custoDepreciacao: Number(row.depreciation_cost),
-  custoMaoDeObra: Number(row.labor_cost), outrosCustos: Number(row.other_cost), custoTotal: Number(row.total_cost),
-  margemLucroPercentual: Number(row.margin_percent), precoCobrado: Number(row.charged_price), lucroLiquido: Number(row.net_profit),
-  status: row.status, estoqueBaixado: row.stock_deducted, observacoes: row.notes || undefined,
-  arquivoPath: row.file_path || undefined, imagemPath: row.image_path || undefined, dataCriacao: row.created_at.slice(0, 10),
-});
+const fromRow = (row: ProjectRow): ProjetoImpressao3D => {
+  let formaPagamento: ProjetoImpressao3D['formaPagamento'];
+  let parcelasCartao: number | undefined;
+  let cleanNotes = row.notes || undefined;
+
+  if (row.notes) {
+    const payMatch = row.notes.match(/^\[Pagamento:\s*(\w+)(?:\s*\|\s*Parcelas:\s*(\d+))?\]\s*(.*)$/is);
+    if (payMatch) {
+      formaPagamento = payMatch[1].toLowerCase() as any;
+      parcelasCartao = payMatch[2] ? parseInt(payMatch[2], 10) : undefined;
+      cleanNotes = payMatch[3] ? payMatch[3].trim() : undefined;
+    }
+  }
+
+  return {
+    id: row.id,
+    nomePeca: row.part_name,
+    clienteNome: row.customer_name,
+    impressoraId: row.printer_id || undefined,
+    pesoEstimadoG: Number(row.estimated_weight_g),
+    tempoEstimadoHoras: Number(row.estimated_hours),
+    quantidade: Number(row.quantity || 1),
+    dataEntrega: row.due_date || undefined,
+    materials: row.materials || [],
+    custoMaterial: Number(row.material_cost),
+    custoEnergia: Number(row.energy_cost),
+    custoDepreciacao: Number(row.depreciation_cost),
+    custoMaoDeObra: Number(row.labor_cost),
+    outrosCustos: Number(row.other_cost),
+    custoTotal: Number(row.total_cost),
+    margemLucroPercentual: Number(row.margin_percent),
+    precoCobrado: Number(row.charged_price),
+    lucroLiquido: Number(row.net_profit),
+    status: row.status,
+    estoqueBaixado: row.stock_deducted,
+    observacoes: cleanNotes,
+    formaPagamento,
+    parcelasCartao,
+    arquivoPath: row.file_path || undefined,
+    imagemPath: row.image_path || undefined,
+    dataCriacao: row.created_at.slice(0, 10),
+  };
+};
 
 export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, refreshImpressoras }: UseProjetosStateProps) {
   const { user } = useAuth();
@@ -72,6 +106,10 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       }
     }
     const productionStarted = startsProduction;
+    const encodedNotes = proj.formaPagamento
+      ? `[Pagamento: ${proj.formaPagamento}${proj.parcelasCartao ? ` | Parcelas: ${proj.parcelasCartao}` : ''}] ${proj.observacoes || ''}`.trim()
+      : (proj.observacoes || null);
+
     void Promise.resolve(supabase.from('spartan_projects').insert({
       company_id: user.companyId, created_by: user.id, part_name: proj.nomePeca, customer_name: proj.clienteNome,
       printer_id: proj.impressoraId || null, materials: proj.materials, estimated_weight_g: proj.pesoEstimadoG,
@@ -79,7 +117,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       depreciation_cost: proj.custoDepreciacao, labor_cost: proj.custoMaoDeObra || 0, other_cost: proj.outrosCustos || 0,
       total_cost: proj.custoTotal, margin_percent: proj.margemLucroPercentual || 0,
       charged_price: proj.precoCobrado, net_profit: proj.lucroLiquido, status: productionStarted ? 'orcamento' : proj.status,
-      stock_deducted: false, notes: proj.observacoes || null, file_path: proj.arquivoPath || null,
+      stock_deducted: false, notes: encodedNotes || null, file_path: proj.arquivoPath || null,
       image_path: proj.imagemPath || null,
       quantity: proj.quantidade || 1,
       due_date: proj.dataEntrega || null,
@@ -152,8 +190,13 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       ...(changes.custoTotal !== undefined ? { total_cost: changes.custoTotal } : {}),
       ...(changes.margemLucroPercentual !== undefined ? { margin_percent: changes.margemLucroPercentual } : {}),
       ...(changes.precoCobrado !== undefined ? { charged_price: changes.precoCobrado } : {}),
-      ...(changes.precoCobrado !== undefined ? { net_profit: Number((changes.precoCobrado - (changes.custoTotal ?? currentProject?.custoTotal ?? 0)).toFixed(2)) } : {}),
-      ...(changes.observacoes !== undefined ? { notes: changes.observacoes || null } : {}),
+      ...(changes.observacoes !== undefined || changes.formaPagamento !== undefined || changes.parcelasCartao !== undefined
+        ? {
+            notes: (changes.formaPagamento ?? currentProject?.formaPagamento)
+              ? `[Pagamento: ${changes.formaPagamento ?? currentProject?.formaPagamento}${changes.parcelasCartao ?? currentProject?.parcelasCartao ? ` | Parcelas: ${changes.parcelasCartao ?? currentProject?.parcelasCartao}` : ''}] ${changes.observacoes ?? currentProject?.observacoes ?? ''}`.trim()
+              : (changes.observacoes ?? currentProject?.observacoes ?? null),
+          }
+        : {}),
       ...(changes.imagemPath !== undefined ? { image_path: changes.imagemPath || null } : {}),
     };
     if (!Object.keys(update).length) return true;
