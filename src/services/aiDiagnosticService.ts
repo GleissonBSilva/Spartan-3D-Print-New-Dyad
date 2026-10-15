@@ -481,7 +481,16 @@ Para a sua consulta técnica:
       throw new Error('Por favor, digite sua dúvida ou problema técnico.');
     }
 
-    // 1. Se o usuário configurou uma chave direta no navegador (ex: Groq grátis ou OpenAI):
+    // 1. FILTRO DE ESCOPO IMEDIATO: Se a pergunta NÃO for sobre impressão 3D, rejeita antes de qualquer coisa!
+    if (!this.isRelevant3DTopic(trimmed)) {
+      return {
+        answer: this.getOutOfScopeResponse(trimmed),
+        model: 'spartan-3d-scope-filter',
+        source: 'spartan_expert_engine',
+      };
+    }
+
+    // 2. Se o usuário configurou uma chave direta no navegador (ex: Groq grátis ou OpenAI):
     const customKey = this.getCustomApiKey();
     if (customKey) {
       try {
@@ -502,7 +511,7 @@ Para a sua consulta técnica:
       }
     }
 
-    // 2. Tenta primeiro chamar a Edge Function do Supabase
+    // 3. Tenta chamar a Edge Function do Supabase (apenas aceita se for resposta de um LLM real)
     try {
       if (supabase) {
         const { data, error } = await supabase.functions.invoke('ai-assistant', {
@@ -511,17 +520,24 @@ Para a sua consulta técnica:
 
         if (!error && data) {
           const rawAnswer = data.answer || data.reply || data.choices?.[0]?.message?.content;
+          const returnedModel = String(data.model || '');
 
-          // Se a resposta do Edge for válida e não for genérica vazia:
+          // Se a Edge Function respondeu com um LLM real (Llama, GPT, etc.), usa a resposta
+          const isRealLlm =
+            returnedModel &&
+            !returnedModel.includes('expert-engine') &&
+            !returnedModel.includes('intelligence-engine');
+
+          // Verifica se não é resposta genérica desatualizada
           const isGenericOutdated =
             rawAnswer &&
             rawAnswer.includes('Calibração de Primeira Camada: Verifique o Z-offset executando uma linha de purga') &&
             !trimmed.toLowerCase().includes('z-offset');
 
-          if (rawAnswer && !isGenericOutdated) {
+          if (rawAnswer && isRealLlm && !isGenericOutdated) {
             return {
               answer: rawAnswer,
-              model: data.model || 'ia-supabase',
+              model: returnedModel,
               source: 'supabase_edge',
             };
           }
@@ -531,7 +547,7 @@ Para a sua consulta técnica:
       console.warn('Edge Function indisponível ou em fallback, acionando motor técnico Spartan:', err);
     }
 
-    // 3. Fallback garantido: motor técnico especialista Spartan 3D com validação de escopo
+    // 4. Fallback garantido: motor técnico especialista Spartan 3D focado e personalizado
     const expertAnswer = this.getExpertAnswer(trimmed);
     return {
       answer: expertAnswer,

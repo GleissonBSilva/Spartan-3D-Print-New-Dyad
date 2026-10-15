@@ -1,11 +1,59 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { fail, json, preflight } from '../_shared/cors.ts';
 
+function isRelevant3DTopic(question: string): boolean {
+  const q = question
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const keywords = [
+    'pla', 'petg', 'abs', 'asa', 'tpu', 'nylon', 'resina', 'resinas', 'pc', 'policarbonato',
+    'pvb', 'pva', 'hips', 'carbono', 'wood', 'madeira', 'silk', 'filamento', 'filamentos',
+    'carretel', 'bobina', 'polimero', 'material', 'materiais', 'impressora', 'impressoras',
+    'impressao', 'imprimir', 'fatiador', 'fatiamento', 'fatiar', 'orca', 'cura', 'bambu',
+    'prusa', 'creality', 'ender', 'k1', 'voron', 'klipper', 'marlin', 'gcode', 'stl', '3mf',
+    'bico', 'nozzle', 'hotend', 'heatbreak', 'garganta', 'dissipador', 'mesa', 'bed', 'chapa',
+    'pei', 'extrusor', 'extrusora', 'direct drive', 'bowden', 'eixo', 'correia', 'nivelamento',
+    'stringing', 'fiapo', 'fiapos', 'teia', 'warping', 'descol', 'empen', 'delamin', 'entup',
+    'clog', 'cold pull', 'subextrus', 'z-hop', 'retra', 'primeira camada', 'z-offset', 'brim',
+    'skirt', 'raft', 'infill', 'preenchimento', 'gyroid', 'parede', 'suporte', 'velocidade',
+    'temperatura', 'fluxo', 'flow rate', 'pressure advance', 'linear advance', 'input shaping',
+    'farm', 'orcamento', 'precific', 'cobrar', 'preco', 'custo', 'mrr'
+  ];
+
+  return keywords.some(k => q.includes(k));
+}
+
+function getOutOfScopeResponse(question: string): string {
+  return `### ⚠️ Consulta Fora do Escopo de Manufatura Aditiva 3D
+
+Identifiquei que sua pergunta:
+> **"${question}"**
+
+não se refere a **impressão 3D, fatiamento, polímeros ou gestão de farms**.
+
+---
+
+#### 🎯 Em que o Spartan 3D Copilot é especializado:
+1. **Engenharia de Materiais:** Compatibilidade, temperaturas e secagem de **PLA, PETG, ABS, ASA, TPU, Nylon, Resinas e Compósitos**.
+2. **Resolução de Falhas Críticas:** Correção de *warping* (descolamento), *stringing* (fiapos/teias), entupimentos (*clogging*), delaminação entre camadas e calibração de Z-offset.
+3. **Parâmetros de Fatiamento:** Perfis otimizados para **OrcaSlicer, Bambu Studio, Ultimaker Cura e PrusaSlicer**.
+4. **Hardware & Firmwares:** Otimização de Klipper (*Input Shaping e Pressure Advance*), sistemas Direct Drive vs Bowden e bicos especiais (*0.2mm a 0.8mm em aço endurecido*).
+5. **Comercial & Farm:** Precificação de peças, cálculo de consumo de filamento, depreciação de máquinas e estimativa de lucro por lote.
+
+💡 *Por favor, digite uma dúvida técnica sobre sua impressora, material ou projeto de impressão 3D!*`;
+}
+
 /**
  * Motor especialista de diagnóstico técnico e operacional 3D da Spartan
  * Garante respostas técnicas aprofundadas, exatas e personalizadas para qualquer dúvida
  */
 function generateSpecialized3DAnswer(question: string): string {
+  if (!isRelevant3DTopic(question)) {
+    return getOutOfScopeResponse(question);
+  }
+
   const rawQ = question.toLowerCase();
   // Normaliza termos técnicos e erros comuns de digitação
   const q = rawQ
