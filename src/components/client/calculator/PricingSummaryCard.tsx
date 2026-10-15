@@ -3,13 +3,14 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Layers, Zap, Save, CheckCircle2, Truck } from 'lucide-react';
+import { DollarSign, Layers, Zap, Save, CheckCircle2, Truck, AlertCircle } from 'lucide-react';
 import { PricingCalculationResult } from '@/services/pricingService';
 
 interface PricingSummaryCardProps {
   nomePeca: string;
   calculationResult: PricingCalculationResult & { valorFrete?: number };
   taxaFalhaPorcento: number;
+  hasSimulationData?: boolean;
   onSalvarOrcamento: () => void;
   onAprovarProducao: () => void;
   saving?: boolean;
@@ -21,6 +22,7 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
   nomePeca,
   calculationResult,
   taxaFalhaPorcento,
+  hasSimulationData = true,
   onSalvarOrcamento,
   onAprovarProducao,
   saving = false,
@@ -33,9 +35,21 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
         <DollarSign className="w-5 h-5 text-emerald-400" />
         <div>
           <h3 className="font-bold text-white text-sm">Resumo Financeiro Consolidado</h3>
-          <p className="text-[10px] text-slate-400">{nomePeca}</p>
+          <p className="text-[10px] text-slate-400">{nomePeca || 'Nova Peça / Simulação'}</p>
         </div>
       </div>
+
+      {!hasSimulationData && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200 space-y-1.5">
+          <div className="flex items-center gap-2 font-bold text-amber-300">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Aguardando dados de simulação</span>
+          </div>
+          <p className="text-[11px] text-amber-200/80 leading-relaxed">
+            Preencha o <strong>tempo de fatiamento</strong> e o <strong>peso em gramas</strong> da peça para calcular os custos reais de fabricação e o preço final de venda.
+          </p>
+        </div>
+      )}
 
       {/* Detalhamento Item a Item */}
       <div className="space-y-2.5 text-xs">
@@ -45,7 +59,7 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
             Materiais ({calculationResult.totalWeightGrams}g + {taxaFalhaPorcento}% falha):
           </span>
           <span className="font-bold text-white">
-            R$ {calculationResult.materialsWithFailureCost.toFixed(2)}
+            R$ {(hasSimulationData ? calculationResult.materialsWithFailureCost : 0).toFixed(2)}
           </span>
         </div>
 
@@ -55,21 +69,21 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
             Energia ({calculationResult.kwhTotal} kWh):
           </span>
           <span className="font-bold text-white">
-            R$ {calculationResult.energyCost.toFixed(2)}
+            R$ {(hasSimulationData ? calculationResult.energyCost : 0).toFixed(2)}
           </span>
         </div>
 
         <div className="flex justify-between text-slate-300">
           <span className="text-slate-400">Depreciação Máquina & Bico:</span>
           <span className="font-bold text-white">
-            R$ {calculationResult.depreciationCost.toFixed(2)}
+            R$ {(hasSimulationData ? calculationResult.depreciationCost : 0).toFixed(2)}
           </span>
         </div>
 
         <div className="flex justify-between text-slate-300">
           <span className="text-slate-400">Mão de Obra / Pós-processamento:</span>
           <span className="font-bold text-white">
-            R$ {calculationResult.laborCost.toFixed(2)}
+            R$ {(hasSimulationData ? calculationResult.laborCost : 0).toFixed(2)}
           </span>
         </div>
 
@@ -89,23 +103,30 @@ export const PricingSummaryCard: React.FC<PricingSummaryCardProps> = ({
       <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
         <div className="flex justify-between items-center text-xs">
           <span className="text-slate-400">Custo Total de Fabricação:</span>
-          <span className="font-bold text-rose-400 text-sm">
-            R$ {calculationResult.totalProductionCost.toFixed(2)}
+          <span className={`font-bold text-sm ${hasSimulationData ? 'text-rose-400' : 'text-slate-500'}`}>
+            R$ {(hasSimulationData ? calculationResult.totalProductionCost : 0).toFixed(2)}
           </span>
         </div>
 
         <div className="flex justify-between items-center text-xs">
           <span className="text-slate-400">Lucro Líquido Estimado:</span>
-          <span className="font-bold text-emerald-400 text-sm">
-            + R$ {calculationResult.estimatedProfit.toFixed(2)}
+          <span className={`font-bold text-sm ${hasSimulationData ? 'text-emerald-400' : 'text-slate-500'}`}>
+            + R$ {(hasSimulationData ? calculationResult.estimatedProfit : 0).toFixed(2)}
           </span>
         </div>
 
         <div className="pt-2 border-t border-slate-800 flex justify-between items-baseline">
           <span className="text-xs font-bold text-white uppercase">Preço Final:</span>
-          <span className="text-2xl font-black text-indigo-400">
-            R$ {calculationResult.suggestedPrice.toFixed(2)}
-          </span>
+          <div className="text-right">
+            <span className={`text-2xl font-black ${hasSimulationData ? 'text-indigo-400' : 'text-slate-500'}`}>
+              R$ {(hasSimulationData ? calculationResult.suggestedPrice : 0).toFixed(2)}
+            </span>
+            {!hasSimulationData && (
+              <span className="block text-[10px] text-amber-400/80 font-medium">
+                (Aguardando tempo e peso)
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

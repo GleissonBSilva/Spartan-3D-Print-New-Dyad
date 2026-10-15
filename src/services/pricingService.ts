@@ -83,6 +83,20 @@ export class PricingService {
   }
 
   /**
+   * Formata horas decimais para exibição limpa em UI (ex: 1.5 -> "1h 30m", 0.75 -> "45m", 2 -> "2h")
+   */
+  static formatFriendlyHours(decimalHours: number): string {
+    const safeValue = Math.max(0, decimalHours);
+    if (safeValue === 0) return '0h';
+    const totalMinutes = Math.round(safeValue * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours === 0) return `${minutes}m`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  }
+
+  /**
    * Calcula o custo individual de um material com base no peso e preço do carretel
    */
   static calculateMaterialItemCost(

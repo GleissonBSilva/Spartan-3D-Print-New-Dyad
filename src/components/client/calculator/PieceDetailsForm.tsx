@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Box, ImagePlus, X } from 'lucide-react';
+import { Box, ImagePlus, X, Clock3 } from 'lucide-react';
 import { Impressora3D } from '@/types/saas';
+import { PricingService } from '@/services/pricingService';
 
 interface PieceDetailsFormProps {
   nomePeca: string;
@@ -13,8 +14,8 @@ interface PieceDetailsFormProps {
   setClienteNome: (val: string) => void;
   selectedImpressoraId: string;
   setSelectedImpressoraId: (val: string) => void;
-  tempoHoras: number;
-  setTempoHoras: (val: number) => void;
+  tempoHoras: number | string;
+  setTempoHoras: (val: number | string) => void;
   impressoras: Impressora3D[];
   imageFile: File | null;
   setImageFile: (file: File | null) => void;
@@ -34,12 +35,103 @@ export const PieceDetailsForm: React.FC<PieceDetailsFormProps> = ({
   setImageFile,
 }) => {
   const [imagePreview, setImagePreview] = useState('');
+  const [timeMode, setTimeMode] = useState<'hm' | 'text'>('hm');
+  const [horasInput, setHorasInput] = useState<string>('');
+  const [minutosInput, setMinutosInput] = useState<string>('');
+  const [textInput, setTextInput] = useState<string>('');
+
   useEffect(() => {
     if (!imageFile) { setImagePreview(''); return; }
     const url = URL.createObjectURL(imageFile);
     setImagePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
+
+  // Sincroniza os inputs internos quando tempoHoras for alterado de fora (ex: G-Code, edição ou reset)
+  useEffect(() => {
+    if (tempoHoras === '' || tempoHoras === 0 || tempoHoras === '0') {
+      setHorasInput('');
+      setMinutosInput('');
+      setTextInput('');
+      return;
+    }
+
+    const dec = PricingService.parseTimeToDecimal(tempoHoras);
+    if (dec > 0) {
+      const totalMinutes = Math.round(dec * 60);
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+
+      const currentH = horasInput === '' ? 0 : parseInt(horasInput, 10) || 0;
+      const currentM = minutosInput === '' ? 0 : parseInt(minutosInput, 10) || 0;
+      const currentTotalMin = currentH * 60 + currentM;
+
+      if (currentTotalMin !== totalMinutes) {
+        setHorasInput(h === 0 ? '' : String(h));
+        setMinutosInput(m === 0 ? '' : String(m));
+        setTextInput(h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`);
+      }
+    }
+  }, [tempoHoras]);
+
+  const handleHorasChange = (val: string) => {
+    const clean = val.replace(/[^0-9]/g, '');
+    setHorasInput(clean);
+
+    const h = clean === '' ? 0 : parseInt(clean, 10) || 0;
+    const m = minutosInput === '' ? 0 : parseInt(minutosInput, 10) || 0;
+
+    if (clean === '' && minutosInput === '') {
+      setTempoHoras('');
+      setTextInput('');
+    } else {
+      const dec = h + (m / 60);
+      setTempoHoras(dec);
+      setTextInput(h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`);
+    }
+  };
+
+  const handleMinutosChange = (val: string) => {
+    const clean = val.replace(/[^0-9]/g, '');
+    setMinutosInput(clean);
+
+    const m = clean === '' ? 0 : parseInt(clean, 10) || 0;
+    const h = horasInput === '' ? 0 : parseInt(horasInput, 10) || 0;
+
+    if (horasInput === '' && clean === '') {
+      setTempoHoras('');
+      setTextInput('');
+    } else {
+      const dec = h + (m / 60);
+      setTempoHoras(dec);
+      setTextInput(h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`);
+    }
+  };
+
+  const handleTextChange = (val: string) => {
+    setTextInput(val);
+    if (!val.trim()) {
+      setTempoHoras('');
+      setHorasInput('');
+      setMinutosInput('');
+      return;
+    }
+
+    const dec = PricingService.parseTimeToDecimal(val);
+    setTempoHoras(val === '' ? '' : dec);
+    if (dec > 0) {
+      const totalMin = Math.round(dec * 60);
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      setHorasInput(h === 0 ? '' : String(h));
+      setMinutosInput(m === 0 ? '' : String(m));
+    }
+  };
+
+  const decimalHours = PricingService.parseTimeToDecimal(tempoHoras);
+  const totalMinutes = Math.round(decimalHours * 60);
+  const displayH = Math.floor(totalMinutes / 60);
+  const displayM = totalMinutes % 60;
 
   return (
     <Card className="bg-slate-900 border-slate-800 rounded-2xl p-5 space-y-4">
@@ -118,18 +210,91 @@ export const PieceDetailsForm: React.FC<PieceDetailsFormProps> = ({
           </select>
         </div>
 
+        {/* CAMPO DE TEMPO DE IMPRESSÃO / FATIAMENTO */}
         <div>
-          <label className="text-xs font-semibold text-slate-300 block mb-1">
-            Tempo Total Estimado de Fatiamento (Horas)
-          </label>
-          <Input
-            type="number"
-            step="0.1"
-            min={0.1}
-            value={tempoHoras}
-            onChange={e => setTempoHoras(Number(e.target.value))}
-            className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-10 font-bold text-amber-400"
-          />
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-semibold text-slate-300 block">
+              Tempo Total de Fatiamento
+            </label>
+            <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setTimeMode('hm')}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                  timeMode === 'hm'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Horas + Min
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeMode('text')}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                  timeMode === 'text'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Livre (02:30)
+              </button>
+            </div>
+          </div>
+
+          {timeMode === 'hm' ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={horasInput}
+                  onChange={e => handleHorasChange(e.target.value)}
+                  className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-10 font-bold text-amber-400 pr-8"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold pointer-events-none">
+                  h
+                </span>
+              </div>
+              <div className="relative">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={minutosInput}
+                  onChange={e => handleMinutosChange(e.target.value)}
+                  className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-10 font-bold text-amber-400 pr-10"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold pointer-events-none">
+                  min
+                </span>
+              </div>
+            </div>
+          ) : (
+            <Input
+              type="text"
+              placeholder="Ex: 02:30 ou 1h 45m ou 2.5"
+              value={textInput}
+              onChange={e => handleTextChange(e.target.value)}
+              className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-10 font-bold text-amber-400"
+            />
+          )}
+
+          {/* Prévia amigável e confirmação visual em tempo real */}
+          {decimalHours > 0 ? (
+            <div className="flex items-center gap-1.5 text-xs text-amber-300 font-medium mt-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1">
+              <Clock3 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>
+                Tempo: <strong className="text-white">{displayH > 0 ? `${displayH}h ` : ''}{displayM}m</strong>{' '}
+                <span className="text-slate-400 text-[11px]">({decimalHours.toFixed(2)}h de máquina)</span>
+              </span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-500 block mt-1">
+              Informe as horas e minutos estimados pelo fatiador
+            </span>
+          )}
         </div>
       </div>
     </Card>

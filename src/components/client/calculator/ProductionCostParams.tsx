@@ -12,8 +12,8 @@ interface ProductionCostParamsProps {
   setDepreciacaoHora: (val: number) => void;
   taxaFalhaPorcento: number;
   setTaxaFalhaPorcento: (val: number) => void;
-  custoMaoDeObra: number;
-  setCustoMaoDeObra: (val: number) => void;
+  custoMaoDeObra: number | string;
+  setCustoMaoDeObra: (val: number | string) => void;
   margemLucroPorcento: number;
   setMargemLucroPorcento: (val: number) => void;
   marginRealPercent: number;
@@ -77,7 +77,7 @@ export const ProductionCostParams: React.FC<ProductionCostParamsProps> = ({
           <Input
             type="number"
             value={custoMaoDeObra}
-            onChange={e => setCustoMaoDeObra(Number(e.target.value))}
+            onChange={e => setCustoMaoDeObra(e.target.value === '' ? '' : Number(e.target.value))}
             className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-9"
           />
         </div>

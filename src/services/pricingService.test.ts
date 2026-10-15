@@ -45,4 +45,11 @@ describe('PricingService', () => {
     expect(PricingService.formatHours(2)).toBe('2h00m00s');
     expect(PricingService.formatHours(0.75)).toBe('0h45m00s');
   });
+
+  it('formats decimal hours to friendly clean UI string', () => {
+    expect(PricingService.formatFriendlyHours(1.5)).toBe('1h 30m');
+    expect(PricingService.formatFriendlyHours(2)).toBe('2h');
+    expect(PricingService.formatFriendlyHours(0.75)).toBe('45m');
+    expect(PricingService.formatFriendlyHours(0)).toBe('0h');
+  });
 });

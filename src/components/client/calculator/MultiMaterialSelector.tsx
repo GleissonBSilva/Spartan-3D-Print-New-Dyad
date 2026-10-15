@@ -52,7 +52,8 @@ export const MultiMaterialSelector: React.FC<MultiMaterialSelectorProps> = ({
       <div className="space-y-3">
         {materials.map((mat, index) => {
           const filamentoVisto = filamentos.find(f => f.id === mat.materialId);
-          const isEstoqueBaixo = filamentoVisto && filamentoVisto.pesoRestanteG < mat.weightGrams;
+          const currentWeight = Number(mat.weightGrams) || 0;
+          const isEstoqueBaixo = currentWeight > 0 && filamentoVisto && filamentoVisto.pesoRestanteG < currentWeight;
 
           return (
             <div
@@ -112,7 +113,8 @@ export const MultiMaterialSelector: React.FC<MultiMaterialSelectorProps> = ({
                   <Input
                     type="number"
                     min={1}
-                    value={mat.weightGrams}
+                    placeholder="0"
+                    value={mat.weightGrams ?? ''}
                     onChange={e => onUpdateMaterial(mat.id, 'weightGrams', e.target.value)}
                     className="bg-slate-900 border-slate-750 text-white text-xs rounded-xl h-9 font-bold text-indigo-400"
                   />
@@ -122,7 +124,7 @@ export const MultiMaterialSelector: React.FC<MultiMaterialSelectorProps> = ({
                 <div className="sm:col-span-2 flex flex-col justify-end text-right">
                   <span className="text-[10px] text-slate-400">Subtotal:</span>
                   <span className="font-bold text-white text-xs">
-                    R$ {mat.totalCost.toFixed(2)}
+                    R$ {(mat.totalCost || 0).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -131,7 +133,7 @@ export const MultiMaterialSelector: React.FC<MultiMaterialSelectorProps> = ({
                 <div className="text-[11px] text-rose-400 bg-rose-500/10 p-2 rounded-lg flex items-center gap-1.5 font-medium mt-1">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    Aviso: O carretel {filamentoVisto?.tipo} ({filamentoVisto?.cor}) possui apenas {filamentoVisto?.pesoRestanteG}g disponíveis para {mat.weightGrams}g solicitados.
+                    Aviso: O carretel {filamentoVisto?.tipo} ({filamentoVisto?.cor}) possui apenas {filamentoVisto?.pesoRestanteG}g disponíveis para {currentWeight}g solicitados.
                   </span>
                 </div>
               )}

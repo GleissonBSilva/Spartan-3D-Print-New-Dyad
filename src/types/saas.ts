@@ -95,7 +95,7 @@ export interface ProjectMaterial {
   color: string;
   colorHex?: string;
   filamentType: 'PLA' | 'PETG' | 'ABS' | 'TPU' | 'ASA' | 'RESINA' | 'NYLON' | 'PC';
-  weightGrams: number;
+  weightGrams: number | string;
   costPerGram: number;
   totalCost: number;
 }

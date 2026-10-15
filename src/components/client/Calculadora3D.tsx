@@ -30,10 +30,10 @@ export const Calculadora3D: React.FC = () => {
   const { filamentos, impressoras, addProjeto, updateProjeto } = useSaaSData();
   const { user } = useAuth();
 
-  // Dados Gerais do Projeto
+  // Dados Gerais do Projeto (Campos de simulação da peça iniciam vazios)
   const [nomePeca, setNomePeca] = useState(sourceProject?.nomePeca || '');
   const [clienteNome, setClienteNome] = useState(recalculateProject ? recalculateProject.clienteNome : '');
-  const [tempoHoras, setTempoHoras] = useState<number | string>(sourceProject?.tempoEstimadoHoras || 0);
+  const [tempoHoras, setTempoHoras] = useState<number | string>(sourceProject?.tempoEstimadoHoras || '');
   const [selectedImpressoraId, setSelectedImpressoraId] = useState(sourceProject?.impressoraId || '');
   const [observacoes] = useState(sourceProject?.observacoes || '');
 
@@ -41,11 +41,11 @@ export const Calculadora3D: React.FC = () => {
   const [quantidadeLote, setQuantidadeLote] = useState<number | string>(sourceProject?.quantidadeLote ?? sourceProject?.quantidade ?? 1);
   const [modoVenda, setModoVenda] = useState<string>(sourceProject?.modoVenda ?? 'varejo');
   const [descontoAtacado, setDescontoAtacado] = useState<number | string>(sourceProject?.descontoAtacado ?? 13);
-  const [custoEmbalagem, setCustoEmbalagem] = useState<number | string>(sourceProject?.custoEmbalagem ?? 3.00);
-  const [custoBrinde, setCustoBrinde] = useState<number | string>(sourceProject?.custoBrinde ?? 2.00);
-  const [valorFrete, setValorFrete] = useState<number | string>(sourceProject?.valorFrete ?? 0.00);
+  const [custoEmbalagem, setCustoEmbalagem] = useState<number | string>(sourceProject?.custoEmbalagem ?? '');
+  const [custoBrinde, setCustoBrinde] = useState<number | string>(sourceProject?.custoBrinde ?? '');
+  const [valorFrete, setValorFrete] = useState<number | string>(sourceProject?.valorFrete ?? '');
 
-  // Parâmetros Financeiros e Operacionais
+  // Parâmetros Financeiros e Operacionais (Mantidos os padrões operacionais da farm)
   const [tarifaKwh, setTarifaKwh] = useState(0.85);
   const [depreciacaoHora, setDepreciacaoHora] = useState(0.50);
   const [taxaFalhaPorcento, setTaxaFalhaPorcento] = useState(10);
@@ -68,10 +68,32 @@ export const Calculadora3D: React.FC = () => {
     if (materials.length || !filamentos.length) return;
     const filament = filamentos[0];
     const costPerGram = filament.precoKg / 1000;
-    setMaterials([{ id: crypto.randomUUID(), materialId: filament.id, materialName: `${filament.tipo} - ${filament.cor}`, color: filament.cor, colorHex: filament.colorHex, filamentType: filament.tipo, weightGrams: 1, costPerGram, totalCost: Number(costPerGram.toFixed(2)) }]);
-  }, [filamentos, materials.length]);
+    const initialWeight = sourceProject?.materials?.[0]?.weightGrams ?? '';
+    const initialCost = typeof initialWeight === 'number' ? Number((initialWeight * costPerGram).toFixed(2)) : 0;
+    setMaterials([{
+      id: crypto.randomUUID(),
+      materialId: filament.id,
+      materialName: `${filament.tipo} - ${filament.cor}`,
+      color: filament.cor,
+      colorHex: filament.colorHex,
+      filamentType: filament.tipo,
+      weightGrams: initialWeight,
+      costPerGram,
+      totalCost: initialCost,
+    }]);
+  }, [filamentos, materials.length, sourceProject]);
   
   const impressoraAtual = selectedImpressoraId ? impressoras.find(i => i.id === selectedImpressoraId) : undefined;
+
+  const totalGrams = useMemo(() => {
+    return materials.reduce((acc, m) => acc + (Number(m.weightGrams) || 0), 0);
+  }, [materials]);
+
+  const safeTempoDecimal = useMemo(() => {
+    return parseTimeStringToDecimal(tempoHoras);
+  }, [tempoHoras]);
+
+  const hasSimulationData = totalGrams > 0 && safeTempoDecimal > 0;
 
   // Cálculo de Preço Avançado Corrigido
   const calculationResult: PricingCalculationResult = useMemo(() => {
@@ -81,7 +103,6 @@ export const Calculadora3D: React.FC = () => {
     const safeFrete = valorFrete === '' ? 0 : Number(valorFrete) || 0;
     const safeMaoDeObra = custoMaoDeObra === '' ? 0 : Number(custoMaoDeObra) || 0;
     const safeDesconto = descontoAtacado === '' ? 0 : Number(descontoAtacado) || 0;
-    const safeTempoDecimal = parseTimeStringToDecimal(tempoHoras);
 
     // 1. Calcula o custo de 1 UNIDADE padrão
     const unitBaseResult = PricingService.calculateProjectPricing({
@@ -96,7 +117,27 @@ export const Calculadora3D: React.FC = () => {
       profitMarginPercent: margemLucroPorcento,
     });
 
-    // 2. Aplica multiplicador do Lote corretamente aos custos operacionais de fabricação
+    // Se ainda não foram preenchidos os dados de simulação (tempo ou peso), mantém os custos e preços zerados até o fatiamento
+    if (!hasSimulationData) {
+      return {
+        ...unitBaseResult,
+        totalWeightGrams: 0,
+        materialsBaseCost: 0,
+        materialsWithFailureCost: 0,
+        kwhTotal: 0,
+        energyCost: 0,
+        depreciationCost: 0,
+        laborCost: 0,
+        otherCosts: 0,
+        totalProductionCost: 0,
+        suggestedPrice: 0,
+        estimatedProfit: 0,
+        marginRealPercent: 0,
+        valorFrete: safeFrete,
+      };
+    }
+
+    // 2. Aplica multiplicador do Lote aos custos operacionais de fabricação
     const lotMaterialsCost = unitBaseResult.materialsWithFailureCost * safeLote;
     const lotEnergyCost = unitBaseResult.energyCost * safeLote;
     const lotDepreciationCost = unitBaseResult.depreciationCost * safeLote;
@@ -105,11 +146,11 @@ export const Calculadora3D: React.FC = () => {
 
     const lotCostFabrication = lotMaterialsCost + lotEnergyCost + lotDepreciationCost + lotLaborCost;
     
-    // Custos extras variáveis mantidos exatamente como estavam (embalagem e brinde somados ao custo total)
+    // Custos extras variáveis (embalagem e brinde somados ao custo total)
     const extraVariableCosts = safeEmbalagem + safeBrinde;
     const finalLotCost = lotCostFabrication + extraVariableCosts;
 
-    // 3. APLICAÇÃO EXATA: Preço Final = Custo Total de Fabricação * (1 + margem/100) + Frete
+    // 3. Preço Final = Custo Total de Fabricação * (1 + margem/100) + Frete
     let totalBatchSuggestedPrice = finalLotCost * (1 + (Number(margemLucroPorcento) || 0) / 100);
 
     // Verifica Modo de Venda (Atacado x Varejo) sobre o preço sugerido do lote
@@ -119,10 +160,9 @@ export const Calculadora3D: React.FC = () => {
 
     const finalLotPrice = totalBatchSuggestedPrice + safeFrete;
     const finalLotProfit = finalLotPrice - finalLotCost - safeFrete;
-
     const realMargin = finalLotPrice > 0 ? (finalLotProfit / finalLotPrice) * 100 : 0;
 
-    // 4. Retorna o objeto corrigido para alimentar o PricingSummaryCard
+    // 4. Retorna o objeto consolidado para alimentar o PricingSummaryCard
     return {
       ...unitBaseResult,
       totalWeightGrams: lotWeight,
@@ -134,10 +174,10 @@ export const Calculadora3D: React.FC = () => {
       suggestedPrice: Number(finalLotPrice.toFixed(2)),
       estimatedProfit: Number(finalLotProfit.toFixed(2)),
       marginRealPercent: Number(realMargin.toFixed(2)),
-      valorFrete: safeFrete
+      valorFrete: safeFrete,
     };
   }, [
-    materials, tempoHoras, impressoraAtual, tarifaKwh, depreciacaoHora, 
+    materials, safeTempoDecimal, hasSimulationData, impressoraAtual, tarifaKwh, depreciacaoHora, 
     taxaFalhaPorcento, custoMaoDeObra, outrosCustos, margemLucroPorcento,
     quantidadeLote, modoVenda, descontoAtacado, custoEmbalagem, custoBrinde, valorFrete
   ]);
@@ -180,9 +220,9 @@ export const Calculadora3D: React.FC = () => {
       color: availableFil?.cor || 'Padrão',
       colorHex: availableFil?.colorHex || '#6366f1',
       filamentType: availableFil?.tipo || 'PLA',
-      weightGrams: 30,
+      weightGrams: '',
       costPerGram: (availableFil?.precoKg || 100) / 1000,
-      totalCost: Number((30 * ((availableFil?.precoKg || 100) / 1000)).toFixed(2)),
+      totalCost: 0,
     };
 
     setMaterials(prev => [...prev, newMat]);
@@ -262,11 +302,19 @@ export const Calculadora3D: React.FC = () => {
   // Salvar Projeto corrigido (Atualiza se for recalculateProject, caso contrário cria um novo orçamento)
   const handleSalvarProjeto = async (status: 'orcamento' | 'em_impressao') => {
     if (!nomePeca.trim()) {
-      toast.error('Informe o nome da peça/projeto.');
+      toast.error('Informe o nome da peça ou arquivo STL.');
       return;
     }
     if (!materials.length) {
       toast.error('Adicione um filamento real do seu estoque antes de salvar o orçamento.');
+      return;
+    }
+    if (safeTempoDecimal <= 0) {
+      toast.error('Informe o tempo estimado de impressão da peça.');
+      return;
+    }
+    if (totalGrams <= 0) {
+      toast.error('Informe o peso em gramas do filamento a ser utilizado.');
       return;
     }
 
@@ -282,7 +330,7 @@ export const Calculadora3D: React.FC = () => {
       }
     }
 
-    const matSummary = materials.map(m => `${m.filamentType} ${m.color} (${m.weightGrams}g)`).join(' + ');
+    const matSummary = materials.map(m => `${m.filamentType} ${m.color} (${Number(m.weightGrams) || 0}g)`).join(' + ');
     setSavingProject(true);
     
     try {
@@ -295,8 +343,11 @@ export const Calculadora3D: React.FC = () => {
         impressoraId: selectedImpressoraId || undefined,
         impressoraNome: impressoraAtual?.nome || 'A definir na aprovação',
         pesoEstimadoG: calculationResult.totalWeightGrams,
-        tempoEstimadoHoras: parseTimeStringToDecimal(tempoHoras),
-        materials,
+        tempoEstimadoHoras: safeTempoDecimal,
+        materials: materials.map(m => ({
+          ...m,
+          weightGrams: Number(m.weightGrams) || 0,
+        })),
         filamentoUtilizado: matSummary,
         custoMaterial: calculationResult.materialsWithFailureCost,
         custoEnergia: calculationResult.energyCost,
@@ -421,13 +472,6 @@ export const Calculadora3D: React.FC = () => {
                 setTempoHoras={setTempoHoras} 
                 tempoHoras={tempoHoras}
               />
-              {/* Exibição formatada do tempo atual selecionado para confirmação visual */}
-              {parseTimeStringToDecimal(tempoHoras) > 0 && (
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400 px-1">
-                  <Clock3 className="w-3.5 h-3.5 text-indigo-400"/>
-                  <span>Tempo formatado de impressão: <strong className="text-white">{formatHours(parseTimeStringToDecimal(tempoHoras))}</strong></span>
-                </div>
-              )}
             </div>
 
             {/* ========================================== */}
@@ -580,6 +624,7 @@ export const Calculadora3D: React.FC = () => {
               calculationResult={calculationResult} 
               nomePeca={nomePeca} 
               taxaFalhaPorcento={taxaFalhaPorcento}
+              hasSimulationData={hasSimulationData}
               onSalvarOrcamento={() => handleSalvarProjeto('orcamento')}
               onAprovarProducao={() => handleSalvarProjeto('em_impressao')}
               saving={savingProject}
