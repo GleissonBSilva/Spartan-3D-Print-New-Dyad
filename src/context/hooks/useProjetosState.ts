@@ -100,28 +100,36 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
     return true;
   };
 
-  const updateProjetoStatus = (id: string, newStatus: ProjetoImpressao3D['status']) => {
+  const updateProjetoStatus = async (id: string, newStatus: ProjetoImpressao3D['status']): Promise<boolean> => {
     const project = projetos.find(item => item.id === id);
-    if (!project || !supabase) return;
+    if (!project || !supabase) return false;
     const startsProduction = newStatus === 'em_impressao' && !project.estoqueBaixado;
     if (startsProduction) {
       if (!project.impressoraId) {
         toast.error('Selecione uma impressora antes de iniciar a produção.');
-        return;
+        return false;
       }
       const printer = impressoras.find(item => item.id === project.impressoraId);
       if (!printer || printer.status !== 'disponivel') {
         toast.error(`A impressora ${printer?.nome || ''} não está disponível no momento. Escolha uma máquina livre para iniciar.`);
-        return;
+        return false;
       }
     }
-    void (async () => {
-      const { error } = await supabase!.rpc('spartan_set_project_status', { p_project_id: id, p_status: newStatus });
+    try {
+      const { error } = await supabase.rpc('spartan_set_project_status', { p_project_id: id, p_status: newStatus });
       if (error) throw error;
       await Promise.all([refreshFilamentos(), refreshImpressoras()]);
       setProjetos(prev => prev.map(item => item.id === id ? { ...item, status: newStatus, estoqueBaixado: startsProduction || (item.estoqueBaixado && newStatus !== 'cancelado') } : item));
-      toast.success('Status do projeto atualizado.');
-    })().catch(error => toast.error(`Não foi possível atualizar o projeto: ${error.message}`));
+      if (newStatus === 'concluido') {
+        toast.success(`Projeto "${project.nomePeca}" marcado como concluído! Impressora liberada.`);
+      } else {
+        toast.success('Status do projeto atualizado.');
+      }
+      return true;
+    } catch (error) {
+      toast.error(`Não foi possível atualizar o projeto: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+      return false;
+    }
   };
 
   const updateProjeto = async (id: string, changes: Partial<ProjetoImpressao3D>): Promise<boolean> => {

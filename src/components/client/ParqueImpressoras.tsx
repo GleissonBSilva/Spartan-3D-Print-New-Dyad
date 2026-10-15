@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, CirclePower, Clock3, Cpu, History, Pause, Play, Plus, Wrench, X, DollarSign, Trash2, Edit2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CirclePower, Clock3, Cpu, History, Pause, Play, Plus, Wrench, X, DollarSign, Trash2, Edit2 } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { Impressora3D } from '@/types/saas';
 import { toast } from 'sonner';
@@ -44,7 +44,7 @@ const formatSecondsToTime = (totalSeconds: number) => {
 const formatHours = (inputTime: number | string) => formatSecondsToTime(parseAndSanitizeEstimatedSeconds(inputTime));
 
 export const ParqueImpressoras: React.FC = () => {
-  const { impressoras: rawImpressoras, projetos, historicoImpressoras, addImpressora, updateImpressora, deleteImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance } = useSaaSData();
+  const { impressoras: rawImpressoras, projetos, historicoImpressoras, addImpressora, updateImpressora, deleteImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance, updateProjetoStatus, refreshFarmData } = useSaaSData();
   
   // Estado local para exclusão manual garantida e metadados customizados
   const [deletedPrinterIds, setDeletedPrinterIds] = useState<string[]>([]);
@@ -96,6 +96,53 @@ export const ParqueImpressoras: React.FC = () => {
   const [editVidaUtil, setEditVidaUtil] = useState<number | string>(5000);
 
   const [remainingSecondsMap, setRemainingSecondsMap] = useState<Record<string, number>>({});
+  const completingPrintersRef = React.useRef<Set<string>>(new Set());
+
+  const handleConcluirTrabalho = async (printer: Impressora3D, isAuto = false) => {
+    if (completingPrintersRef.current.has(printer.id)) return;
+    completingPrintersRef.current.add(printer.id);
+
+    const projectId = printer.projetoAtualId;
+    const currentProject = projetos.find(proj => proj.id === projectId);
+    const projectName = currentProject?.nomePeca || printer.projetoAtual || 'Projeto';
+
+    try {
+      // 1. Zera e limpa do mapa de contagem local
+      setRemainingSecondsMap(prev => {
+        const next = { ...prev };
+        delete next[printer.id];
+        return next;
+      });
+
+      // 2. Dá baixa no projeto e libera a impressora
+      if (projectId) {
+        await updateProjetoStatus(projectId, 'concluido');
+      } else {
+        updateImpressoraStatus(printer.id, 'disponivel');
+      }
+
+      await refreshFarmData();
+
+      if (isAuto) {
+        toast.success(
+          `⏰ Tempo zerado! A peça "${projectName}" foi finalizada, com baixa automática efetuada. A impressora ${printer.nome} agora está disponível!`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success(
+          `✅ Impressão de "${projectName}" concluída com sucesso! Impressora ${printer.nome} liberada e pronta para nova produção.`,
+          { duration: 5000 }
+        );
+      }
+    } catch (e) {
+      console.error('Erro ao concluir trabalho da impressora:', e);
+      toast.error('Erro ao registrar a conclusão da impressão.');
+    } finally {
+      setTimeout(() => {
+        completingPrintersRef.current.delete(printer.id);
+      }, 3000);
+    }
+  };
 
   const [nome, setNome] = useState('');
   const [modelo, setModelo] = useState('');
@@ -118,8 +165,13 @@ export const ParqueImpressoras: React.FC = () => {
           const rawTempo = currentProject?.tempoEstimadoHoras ?? 18;
           const totalSecs = parseAndSanitizeEstimatedSeconds(rawTempo);
           const progress = p.progressoPercentual ?? 0;
-          next[p.id] = Math.round(totalSecs * (1 - (progress / 100)));
+          const remaining = Math.round(totalSecs * (1 - (progress / 100)));
+          next[p.id] = remaining;
           changed = true;
+          // Se carregar já zerado, dá baixa e libera automaticamente
+          if (remaining <= 0) {
+            void handleConcluirTrabalho(p, true);
+          }
         }
       });
       return changed ? next : prev;
@@ -132,9 +184,16 @@ export const ParqueImpressoras: React.FC = () => {
 
         printingPrinters.forEach(p => {
           const currentSecs = nextSecs[p.id];
-          if (currentSecs !== undefined && currentSecs > 0) {
-            nextSecs[p.id] = currentSecs - 1;
-            secsChanged = true;
+          if (currentSecs !== undefined) {
+            if (currentSecs > 1) {
+              nextSecs[p.id] = currentSecs - 1;
+              secsChanged = true;
+            } else {
+              // Tempo zerou de forma automática!
+              nextSecs[p.id] = 0;
+              secsChanged = true;
+              void handleConcluirTrabalho(p, true);
+            }
           }
         });
 
@@ -349,16 +408,101 @@ export const ParqueImpressoras: React.FC = () => {
             <span className="text-slate-300">Depreciação: <strong className="text-emerald-400">R$ {depreciacaoH.toFixed(2)}/h</strong></span>
           </div>
 
-          {printer.projetoAtualId ? <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Projeto atual</p><p className="mt-1 font-semibold text-white">{printer.projetoAtual || currentProject?.nomePeca || 'Projeto em andamento'}</p></div><span className="shrink-0 text-right text-xs text-slate-400"><Clock3 className="mr-1 inline h-3.5 w-3.5" />~{formatSecondsToTime(remainingPrintSeconds)} restantes</span></div>
-            <div><div className="mb-1 flex justify-between text-xs"><span className="text-slate-400">Progresso informado</span><strong className="text-sky-300">{Number(progress).toFixed(1)}%</strong></div><Progress value={progress} className="h-2 bg-slate-800 [&>div]:bg-sky-500" /><input aria-label={`Progresso de ${printer.nome}`} type="range" min="0" max="100" step="0.1" value={progress} onChange={event => { const val = Number(event.target.value); setProgressDraft(previous => ({ ...previous, [printer.id]: val })); setRemainingSecondsMap(previous => ({ ...previous, [printer.id]: Math.round(totalSecondsEstimated * (1 - (val / 100))) })); }} onPointerUp={event => { const value = Number(event.currentTarget.value); void updatePrinterProgress(printer.id, value).then(saved => { if (saved) setProgressDraft(previous => { const next = { ...previous }; delete next[printer.id]; return next; }); }); }} onKeyUp={event => { const value = Number(event.currentTarget.value); void updatePrinterProgress(printer.id, value); }} disabled={!['imprimindo', 'pausada'].includes(printer.status)} className="mt-2 w-full accent-sky-500 disabled:opacity-40" /></div>
-            {currentProject && <p className="text-xs text-slate-400">Tempo previsto do projeto: {formatHours(currentProject.tempoEstimadoHoras)}</p>}
-          </div> : <div className="rounded-xl bg-slate-950 px-4 py-3 text-sm text-slate-400">Nenhum trabalho em produção.</div>}
+          {printer.projetoAtualId ? (
+            <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Projeto atual</p>
+                  <p className="mt-1 font-semibold text-white">{printer.projetoAtual || currentProject?.nomePeca || 'Projeto em andamento'}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-right text-xs text-slate-400">
+                    <Clock3 className="mr-1 inline h-3.5 w-3.5 text-sky-400" />
+                    ~{formatSecondsToTime(remainingPrintSeconds)} restantes
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleConcluirTrabalho(printer, false)}
+                    title="Zerar tempo e concluir projeto agora"
+                    className="h-7 px-2.5 text-[11px] font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:text-white rounded-lg transition-colors"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-400" />
+                    Zerar tempo & Dar baixa
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex justify-between text-xs">
+                  <span className="text-slate-400">Progresso informado</span>
+                  <strong className="text-sky-300">{Number(progress).toFixed(1)}%</strong>
+                </div>
+                <Progress value={progress} className="h-2 bg-slate-800 [&>div]:bg-sky-500" />
+                <input
+                  aria-label={`Progresso de ${printer.nome}`}
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={progress}
+                  onChange={event => {
+                    const val = Number(event.target.value);
+                    setProgressDraft(previous => ({ ...previous, [printer.id]: val }));
+                    setRemainingSecondsMap(previous => ({ ...previous, [printer.id]: Math.round(totalSecondsEstimated * (1 - (val / 100))) }));
+                  }}
+                  onPointerUp={event => {
+                    const value = Number(event.currentTarget.value);
+                    if (value >= 100) {
+                      void handleConcluirTrabalho(printer, false);
+                    } else {
+                      void updatePrinterProgress(printer.id, value).then(saved => {
+                        if (saved) setProgressDraft(previous => { const next = { ...previous }; delete next[printer.id]; return next; });
+                      });
+                    }
+                  }}
+                  onKeyUp={event => {
+                    const value = Number(event.currentTarget.value);
+                    if (value >= 100) {
+                      void handleConcluirTrabalho(printer, false);
+                    } else {
+                      void updatePrinterProgress(printer.id, value);
+                    }
+                  }}
+                  disabled={!['imprimindo', 'pausada'].includes(printer.status)}
+                  className="mt-2 w-full accent-sky-500 disabled:opacity-40"
+                />
+              </div>
+              {currentProject && <p className="text-xs text-slate-400">Tempo previsto do projeto: {formatHours(currentProject.tempoEstimadoHoras)}</p>}
+            </div>
+          ) : (
+            <div className="rounded-xl bg-slate-950 px-4 py-3 text-sm text-slate-400">Nenhum trabalho em produção.</div>
+          )}
 
           <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-950 p-3"><p className="text-[11px] text-slate-500">Horas de impressão</p><p className="mt-1 font-semibold text-white">{formatHours(printer.horasUso)}</p><p className="text-[10px] text-slate-500">Estimadas em projetos concluídos</p></div><div className={`rounded-xl p-3 ${serviceDue ? 'bg-orange-500/10' : serviceSoon ? 'bg-amber-500/10' : 'bg-slate-950'}`}><p className="text-[11px] text-slate-500">Próxima manutenção</p><p className={`mt-1 font-semibold ${serviceDue ? 'text-orange-300' : serviceSoon ? 'text-amber-300' : 'text-white'}`}>{serviceDue ? 'Manutenção necessária' : `Em ${formatHours(remainingService)}`}</p><p className="text-[10px] text-slate-500">Intervalo: {printer.intervaloManutencaoHoras || 100} h · Última: {lastMaintenance ? new Date(lastMaintenance.data).toLocaleDateString('pt-BR') : 'sem registro'}</p></div></div>
 
           <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-3">
-            {printer.status === 'imprimindo' && <Button size="sm" variant="outline" onClick={() => updateImpressoraStatus(printer.id, 'pausada')} className="border-slate-700 bg-slate-950 text-xs text-white hover:bg-slate-800"><Pause className="mr-1.5 h-3.5 w-3.5" />Pausar</Button>}
-            {printer.status === 'pausada' && <Button size="sm" onClick={() => updateImpressoraStatus(printer.id, 'imprimindo')} className="bg-sky-600 text-xs text-white hover:bg-sky-500"><Play className="mr-1.5 h-3.5 w-3.5" />Retomar</Button>}
+            {printer.status === 'imprimindo' && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => updateImpressoraStatus(printer.id, 'pausada')} className="border-slate-700 bg-slate-950 text-xs text-white hover:bg-slate-800">
+                  <Pause className="mr-1.5 h-3.5 w-3.5" />Pausar
+                </Button>
+                <Button size="sm" onClick={() => handleConcluirTrabalho(printer, false)} className="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold shadow-md shadow-emerald-600/20">
+                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Concluir & Liberar Máquina
+                </Button>
+              </>
+            )}
+            {printer.status === 'pausada' && (
+              <>
+                <Button size="sm" onClick={() => updateImpressoraStatus(printer.id, 'imprimindo')} className="bg-sky-600 text-xs text-white hover:bg-sky-500">
+                  <Play className="mr-1.5 h-3.5 w-3.5" />Retomar
+                </Button>
+                <Button size="sm" onClick={() => handleConcluirTrabalho(printer, false)} className="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold">
+                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Concluir & Liberar Máquina
+                </Button>
+              </>
+            )}
             {printer.status === 'disponivel' && <Link to="/cliente/projetos"><Button size="sm" className="bg-indigo-600 text-xs text-white hover:bg-indigo-500"><Play className="mr-1.5 h-3.5 w-3.5" />Iniciar impressão</Button></Link>}
             {printer.status === 'disponivel' && <Button size="sm" variant="outline" onClick={() => updateImpressoraStatus(printer.id, 'desconectada')} className="border-slate-700 bg-slate-950 text-xs text-slate-200 hover:bg-slate-800 hover:text-white">Marcar offline</Button>}
             {printer.status === 'desconectada' && <Button size="sm" variant="outline" onClick={() => updateImpressoraStatus(printer.id, 'disponivel')} className="border-slate-700 bg-slate-950 text-xs text-white hover:bg-slate-800">Marcar disponível</Button>}
