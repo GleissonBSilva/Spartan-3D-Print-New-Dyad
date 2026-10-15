@@ -50,18 +50,21 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
     projeto.url;
 
   // Configurações de pagamento da Farm
-  const settings = PaymentMethodsService.loadPaymentSettings();
+  const settings = PaymentMethodsService.getSettings();
   const downPaymentPercent = settings.downPaymentPercent || 50;
-  const totalCobrado = projeto.precoCobrado || 0;
+  const totalCobrado = Number(projeto.precoCobrado) || 0;
   const downPaymentAmount = Number(((totalCobrado * downPaymentPercent) / 100).toFixed(2));
   const remainingAmount = Math.max(0, Number((totalCobrado - downPaymentAmount).toFixed(2)));
+
+  const pixDiscount = settings.methods?.pix?.discountPercent ?? settings.pixDiscountPercent ?? 5;
+  const cashDiscount = settings.methods?.dinheiro?.discountPercent ?? settings.cashDiscountPercent ?? 5;
 
   // Determinar texto descritivo da forma de pagamento
   const paymentMethodLabel = (() => {
     if (projeto.detalhesPagamento) return projeto.detalhesPagamento;
     if (projeto.formaPagamento === 'pix') {
-      return settings.pixDiscountPercent > 0
-        ? `PIX à Vista (${settings.pixDiscountPercent}% de desconto)`
+      return pixDiscount > 0
+        ? `PIX à Vista (${pixDiscount}% de desconto)`
         : 'PIX à Vista';
     }
     if (projeto.formaPagamento === 'credito') {
@@ -72,8 +75,8 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
       return 'Cartão de Débito';
     }
     if (projeto.formaPagamento === 'dinheiro') {
-      return settings.cashDiscountPercent > 0
-        ? `Dinheiro / Espécie (${settings.cashDiscountPercent}% de desconto)`
+      return cashDiscount > 0
+        ? `Dinheiro / Espécie (${cashDiscount}% de desconto)`
         : 'Dinheiro / Espécie';
     }
     return 'PIX / Cartão de Crédito / Débito / Dinheiro';

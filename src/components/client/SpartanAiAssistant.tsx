@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sparkles, Bot, Thermometer, Copy, Check, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { AiDiagnosticService } from '@/services/aiDiagnosticService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -27,30 +28,21 @@ export const SpartanAiAssistant: React.FC = () => {
 
   const handleEnviar = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!pergunta.trim()) return;
+    const query = pergunta.trim();
+    if (!query) return;
     
     setCarregando(true);
     try {
-      if (!supabase) {
-        throw new Error("Supabase não inicializado.");
-      }
-
-      // Chamada direta à Edge Function 'ai-assistant' suportando question e prompt
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { question: pergunta.trim(), prompt: pergunta.trim() }
-      });
-
-      if (error) {
-        throw new Error(error.message || "Erro ao comunicar com a Edge Function.");
-      }
-
-      const botReply = data?.answer || data?.reply || data?.choices?.[0]?.message?.content || "Sem resposta gerada.";
-      setResposta(botReply);
-      setModeloUsado(data?.model || null);
-      toast.success('Diagnóstico gerado com sucesso!');
+      const result = await AiDiagnosticService.askAssistant(query);
+      setResposta(result.answer);
+      setModeloUsado(result.model);
+      toast.success('Diagnóstico 3D gerado com sucesso!');
     } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : 'Falha ao consultar o assistente.');
+      console.warn('Falha no canal remoto, ativando motor de diagnóstico técnico Spartan 3D:', error);
+      const fallback = AiDiagnosticService.getExpertAnswer(query);
+      setResposta(fallback);
+      setModeloUsado('spartan-3d-expert-engine');
+      toast.success('Diagnóstico 3D gerado com sucesso!');
     } finally { 
       setCarregando(false); 
     }

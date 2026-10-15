@@ -15,6 +15,8 @@ export interface FarmPaymentSettings {
   pixKey: string;
   pixBeneficiary: string;
   downPaymentPercent: number; // Porcentagem padrão de sinal para início (ex: 50%)
+  pixDiscountPercent?: number;
+  cashDiscountPercent?: number;
   methods: {
     pix: PaymentMethodItemConfig;
     credito: PaymentMethodItemConfig;
@@ -44,6 +46,8 @@ export const DEFAULT_PAYMENT_SETTINGS: FarmPaymentSettings = {
   pixKey: '+55 92 99146-3640',
   pixBeneficiary: 'Spartan 3D Print',
   downPaymentPercent: 50,
+  pixDiscountPercent: 5,
+  cashDiscountPercent: 5,
   methods: {
     pix: {
       enabled: true,
@@ -89,19 +93,36 @@ export class PaymentMethodsService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        const methods = {
+          ...DEFAULT_PAYMENT_SETTINGS.methods,
+          ...(parsed.methods || {}),
+        };
+        const pixDiscount = methods.pix?.discountPercent ?? parsed.pixDiscountPercent ?? 5;
+        const cashDiscount = methods.dinheiro?.discountPercent ?? parsed.cashDiscountPercent ?? 5;
+
         return {
           ...DEFAULT_PAYMENT_SETTINGS,
           ...parsed,
-          methods: {
-            ...DEFAULT_PAYMENT_SETTINGS.methods,
-            ...(parsed.methods || {}),
-          },
+          pixDiscountPercent: pixDiscount,
+          cashDiscountPercent: cashDiscount,
+          methods,
         };
       }
     } catch (e) {
       console.warn('Erro ao ler configurações de pagamento do localStorage:', e);
     }
-    return DEFAULT_PAYMENT_SETTINGS;
+    return {
+      ...DEFAULT_PAYMENT_SETTINGS,
+      pixDiscountPercent: DEFAULT_PAYMENT_SETTINGS.methods.pix.discountPercent,
+      cashDiscountPercent: DEFAULT_PAYMENT_SETTINGS.methods.dinheiro.discountPercent,
+    };
+  }
+
+  /**
+   * Alias compatível para getSettings
+   */
+  static loadPaymentSettings(): FarmPaymentSettings {
+    return this.getSettings();
   }
 
   /**
@@ -116,6 +137,13 @@ export class PaymentMethodsService {
       console.error('Erro ao salvar configurações de pagamento:', e);
       return false;
     }
+  }
+
+  /**
+   * Alias compatível para saveSettings
+   */
+  static savePaymentSettings(settings: FarmPaymentSettings): boolean {
+    return this.saveSettings(settings);
   }
 
   /**
