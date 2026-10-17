@@ -29,8 +29,14 @@ export const RequireRole: React.FC<{ roles: Array<'admin' | 'client' | 'manager'
 
   const isAdmin = canAccessAdmin(user);
 
-  // Bloqueio imediato de acesso para clientes com status 'overdue' (atrasado) ou 'canceled' (cancelado)
-  if (!isAdmin && (user.status === 'overdue' || user.status === 'canceled')) {
+  const joinedMs = user.joinedAt ? new Date(user.joinedAt).getTime() : NaN;
+  const isTrialExpired =
+    user.status === 'trialing' &&
+    Number.isFinite(joinedMs) &&
+    Date.now() - joinedMs >= 14 * 24 * 60 * 60 * 1000;
+
+  // Bloqueio imediato de acesso para clientes (não-admin) com status 'overdue', 'canceled' ou teste de 14 dias expirado
+  if (!isAdmin && (user.status === 'overdue' || user.status === 'canceled' || isTrialExpired)) {
     return <SubscriptionBlockedScreen />;
   }
 

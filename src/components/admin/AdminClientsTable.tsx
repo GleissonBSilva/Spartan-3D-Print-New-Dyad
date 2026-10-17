@@ -108,11 +108,16 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                           <CheckCircle2 className="w-3 h-3" /> Ativo
                         </span>
                       )}
-                      {client.status === 'trialing' && (
-                        <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
-                          <Clock className="w-3 h-3" /> Teste Grátis
-                        </span>
-                      )}
+                      {client.status === 'trialing' && (() => {
+                        const joinedMs = client.joinedAt ? new Date(client.joinedAt).getTime() : Date.now();
+                        const elapsedDays = Math.floor((Date.now() - joinedMs) / (24 * 60 * 60 * 1000));
+                        const remainingDays = Math.max(0, 14 - elapsedDays);
+                        return (
+                          <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
+                            <Clock className="w-3 h-3" /> Teste Grátis ({remainingDays}d restantes)
+                          </span>
+                        );
+                      })()}
                       {client.status === 'overdue' && (
                         <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-bold text-[11px]">
                           <Lock className="w-3 h-3 text-rose-400" /> Atrasado (Bloqueado)
@@ -124,7 +129,9 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-400">{client.joinedAt}</td>
+                    <td className="py-3.5 px-4 text-slate-400">
+                      {client.joinedAt ? new Date(client.joinedAt).toLocaleDateString('pt-BR') : '—'}
+                    </td>
                     <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                       <Button
                         size="sm"
@@ -137,15 +144,27 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         Cobrar Pix
                       </Button>
 
+                      {client.status === 'trialing' && (
+                        <Button
+                          size="sm"
+                          onClick={() => updateClientStatus(client.id, 'active')}
+                          className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
+                          title="Ativar assinatura definitiva após pagamento"
+                        >
+                          <CheckCircle2 className="w-3 h-3 mr-1" />
+                          Ativar Conta
+                        </Button>
+                      )}
+
                       {client.status === 'overdue' ? (
                         <Button
                           size="sm"
                           onClick={() => updateClientStatus(client.id, 'active')}
                           className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
-                          title="Liberar acesso do cliente imediatamente"
+                          title="Liberar e ativar acesso do cliente imediatamente após pagamento"
                         >
                           <Unlock className="w-3 h-3 mr-1" />
-                          Desbloquear
+                          Desbloquear (Ativar)
                         </Button>
                       ) : (
                         <Button

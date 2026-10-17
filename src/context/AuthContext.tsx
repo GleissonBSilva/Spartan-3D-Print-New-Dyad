@@ -41,25 +41,48 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+
 function mapUser(authUser: SupabaseUser, profile?: Record<string, unknown> | null, platformRoles: PlatformRole[] = []): User {
   const metadata = authUser.user_metadata || {};
   const profileRole = profile?.role;
   const role: UserRole = profileRole === 'admin' || profileRole === 'manager' ? profileRole : 'client';
+  const resolvedPlatformRoles = profileRole === 'admin' && !platformRoles.includes('admin') ? [...platformRoles, 'admin'] : platformRoles;
+  const isAdminUser = role === 'admin' || resolvedPlatformRoles.includes('admin') || resolvedPlatformRoles.includes('developer');
+
+  const createdAtStr = typeof profile?.created_at === 'string' ? profile.created_at : authUser.created_at;
+  const trialEndsAtStr = typeof profile?.trial_ends_at === 'string' ? profile.trial_ends_at : null;
+  const trialEndMs = trialEndsAtStr
+    ? new Date(trialEndsAtStr).getTime()
+    : new Date(createdAtStr).getTime() + TRIAL_DURATION_MS;
+  const isTrialExpired = Number.isFinite(trialEndMs) && Date.now() >= trialEndMs;
+
+  let status: User['status'] =
+    profile?.status === 'overdue' || profile?.status === 'canceled' || profile?.status === 'trialing'
+      ? profile.status
+      : 'active';
+
+  if (isAdminUser) {
+    status = 'active';
+  } else if (status === 'trialing' && isTrialExpired) {
+    status = 'overdue';
+  }
+
   return {
     id: authUser.id,
     email: authUser.email || '',
     name: String(profile?.full_name || metadata.full_name || ''),
     role,
-    platformRoles: profileRole === 'admin' && !platformRoles.includes('admin') ? [...platformRoles, 'admin'] : platformRoles,
+    platformRoles: resolvedPlatformRoles,
     avatar: String(profile?.avatar_url || metadata.avatar_url || ''),
     companyId: typeof profile?.company_id === 'string' ? profile.company_id : undefined,
     companyName: typeof profile?.company_name === 'string' ? profile.company_name : typeof metadata.company_name === 'string' ? metadata.company_name : undefined,
     companyPhone: typeof profile?.company_phone === 'string' ? profile.company_phone : undefined,
     planId: typeof profile?.plan_id === 'string' ? profile.plan_id : 'plan_pro',
     aiCreditsRemaining: typeof profile?.ai_credits_remaining === 'number' ? profile.ai_credits_remaining : 0,
-    status: profile?.status === 'overdue' || profile?.status === 'canceled' || profile?.status === 'trialing' ? profile.status : 'active',
+    status,
     mrr: 0,
-    joinedAt: authUser.created_at,
+    joinedAt: createdAtStr,
   };
 }
 
@@ -87,9 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     const client = requireSupabase();
+    // Sincroniza automaticamente contas cujo período de 14 dias de teste expirou
+    await Promise.resolve(client.rpc('spartan_sync_expired_trials')).catch(() => undefined);
+
     const [{ data, error }, { data: platformAccess, error: accessError }] = await Promise.all([
       client.from('spartan_profiles')
-      .select('full_name, company_id, company_name, company_phone, role, status, avatar_url, plan_id, ai_credits_remaining')
+      .select('full_name, company_id, company_name, company_phone, role, status, trial_ends_at, created_at, avatar_url, plan_id, ai_credits_remaining')
       .eq('id', authUser.id).maybeSingle(),
       client.from('spartan_platform_access').select('access_role').eq('user_id', authUser.id),
     ]);

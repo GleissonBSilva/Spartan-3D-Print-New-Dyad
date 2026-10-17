@@ -12,9 +12,10 @@ export function useBillingState() {
 
   const load = useCallback(async () => {
     if (!user || !supabase) { setClients([]); setInvoices([]); return; }
+    await Promise.resolve(supabase.rpc('spartan_sync_expired_trials')).catch(() => undefined);
     if (canAccessAdmin(user)) {
       const [{ data: users, error: userError }, { data: invoiceRows, error: invoiceError }, { data: planRows, error: planError }] = await Promise.all([
-        supabase.from('spartan_profiles').select('id, email, full_name, role, status, plan_id, company_id, company_name, created_at').eq('role', 'client'),
+        supabase.from('spartan_profiles').select('id, email, full_name, role, status, plan_id, company_id, company_name, created_at, trial_ends_at').eq('role', 'client'),
         supabase.from('spartan_invoices').select('*').order('created_at', { ascending: false }),
         supabase.from('spartan_plans').select('id, price_monthly'),
       ]);
@@ -132,14 +133,14 @@ export function useBillingState() {
         .single();
       if (invoiceErr) throw invoiceErr;
 
-      // Se a fatura é de um cliente em atraso, restaura o status para 'active'
+      // Ao liquidar a fatura (pagamento confirmado pelo Admin), ativa a conta do cliente (seja de teste ou em atraso)
       if (invoiceData?.user_id) {
         const { data: profile } = await supabase
           .from('spartan_profiles')
           .select('status')
           .eq('id', invoiceData.user_id)
           .single();
-        if (profile?.status === 'overdue') {
+        if (profile?.status !== 'active') {
           await supabase.from('spartan_profiles').update({ status: 'active' }).eq('id', invoiceData.user_id);
           setClients(prev => prev.map(c => c.id === invoiceData.user_id ? { ...c, status: 'active' } : c));
         }
