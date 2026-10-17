@@ -26,6 +26,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { Invoice, User } from '@/types/saas';
 import {
@@ -37,6 +38,7 @@ import {
 } from '@/services/pixService';
 
 export const AdminFinancialArea: React.FC = () => {
+  const { user } = useAuth();
   const {
     invoices,
     clients,
@@ -47,10 +49,16 @@ export const AdminFinancialArea: React.FC = () => {
     refreshBilling,
   } = useSaaSData();
 
-  // Configuração Pix
-  const [pixConfig, setPixConfig] = useState<PixConfig>(getSavedPixConfig);
+  // Configuração Pix isolada por user.id
+  const [pixConfig, setPixConfig] = useState<PixConfig>(() => getSavedPixConfig(user?.id));
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<PixConfig>(pixConfig);
+  const [editingConfig, setEditingConfig] = useState<PixConfig>(() => getSavedPixConfig(user?.id));
+
+  React.useEffect(() => {
+    const saved = getSavedPixConfig(user?.id);
+    setPixConfig(saved);
+    setEditingConfig(saved);
+  }, [user?.id]);
 
   // Modal Nova Cobrança Pix
   const [showNewChargeModal, setShowNewChargeModal] = useState(false);
@@ -129,7 +137,7 @@ export const AdminFinancialArea: React.FC = () => {
 
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    savePixConfig(editingConfig);
+    savePixConfig(editingConfig, user?.id);
     setPixConfig(editingConfig);
     setShowConfigModal(false);
     toast.success('Configuração da Chave Pix salva com sucesso!');

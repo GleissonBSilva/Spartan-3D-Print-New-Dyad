@@ -37,20 +37,35 @@ export const ManagePaymentMethodsModal: React.FC<ManagePaymentMethodsModalProps>
 }) => {
   const { user } = useAuth();
   const [settings, setSettings] = useState<FarmPaymentSettings>(() =>
-    PaymentMethodsService.getSettings(user?.id)
+    PaymentMethodsService.getSettings(user?.id ?? null)
   );
   const [activeTab, setActiveTab] = useState<'pix' | 'credito' | 'debito' | 'dinheiro' | 'sinal'>('pix');
 
   useEffect(() => {
+    let cancelled = false;
     if (isOpen) {
-      setSettings(PaymentMethodsService.getSettings(user?.id));
+      setSettings(PaymentMethodsService.getSettings(user?.id ?? null));
+      if (user?.id) {
+        void PaymentMethodsService.syncFromSupabase(user.id).then(synced => {
+          if (!cancelled) {
+            setSettings(synced);
+          }
+        });
+      }
     }
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, user?.id]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    const ok = PaymentMethodsService.saveSettings(settings, user?.id);
+    if (!user?.id) {
+      toast.error('Usuário não autenticado.');
+      return;
+    }
+    const ok = PaymentMethodsService.saveSettings(settings, user.id);
     if (ok) {
       toast.success('Regras e formas de pagamento salvas com sucesso!');
       if (onSettingsSaved) onSettingsSaved(settings);
@@ -61,9 +76,21 @@ export const ManagePaymentMethodsModal: React.FC<ManagePaymentMethodsModalProps>
   };
 
   const handleReset = () => {
-    setSettings(DEFAULT_PAYMENT_SETTINGS);
-    PaymentMethodsService.saveSettings(DEFAULT_PAYMENT_SETTINGS, user?.id);
-    if (onSettingsSaved) onSettingsSaved(DEFAULT_PAYMENT_SETTINGS);
+    if (!user?.id) return;
+    const cleanDefaults = {
+      ...DEFAULT_PAYMENT_SETTINGS,
+      pixKey: '',
+      pixBeneficiary: '',
+      methods: {
+        pix: { ...DEFAULT_PAYMENT_SETTINGS.methods.pix },
+        credito: { ...DEFAULT_PAYMENT_SETTINGS.methods.credito },
+        debito: { ...DEFAULT_PAYMENT_SETTINGS.methods.debito },
+        dinheiro: { ...DEFAULT_PAYMENT_SETTINGS.methods.dinheiro },
+      },
+    };
+    setSettings(cleanDefaults);
+    PaymentMethodsService.saveSettings(cleanDefaults, user.id);
+    if (onSettingsSaved) onSettingsSaved(cleanDefaults);
     toast.info('Configurações de pagamento restauradas para o padrão.');
   };
 

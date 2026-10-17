@@ -64,19 +64,33 @@ export const Calculadora3D: React.FC = () => {
   );
 
   const refreshPaymentSettings = () => {
-    setPaymentSettings(PaymentMethodsService.getSettings(user?.id));
+    setPaymentSettings(PaymentMethodsService.getSettings(user?.id ?? null));
   };
 
   useEffect(() => {
-    refreshPaymentSettings();
+    let cancelled = false;
+    setPaymentSettings(PaymentMethodsService.getSettings(user?.id ?? null));
     if (user?.id) {
       void PaymentMethodsService.syncFromSupabase(user.id).then(synced => {
-        setPaymentSettings(synced);
+        if (!cancelled) {
+          setPaymentSettings(synced);
+        }
       });
     }
-    const handleSettingsUpdated = () => refreshPaymentSettings();
+    const handleSettingsUpdated = (evt: Event) => {
+      const customEvt = evt as CustomEvent<{ userId?: string | null }>;
+      if (customEvt.detail?.userId && customEvt.detail.userId !== user?.id) {
+        return;
+      }
+      if (!cancelled) {
+        setPaymentSettings(PaymentMethodsService.getSettings(user?.id ?? null));
+      }
+    };
     window.addEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
-    return () => window.removeEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
+    };
   }, [user?.id]);
 
   // Parâmetros Financeiros e Operacionais (Mantidos os padrões operacionais da farm)

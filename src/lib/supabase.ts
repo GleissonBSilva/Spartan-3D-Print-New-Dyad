@@ -5,12 +5,51 @@ const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY || import.meta.env.VIT
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+const tabSessionStorage =
+  typeof window !== 'undefined'
+    ? {
+        getItem: (key: string): string | null => {
+          try {
+            const sessionVal = window.sessionStorage.getItem(key);
+            if (sessionVal !== null) return sessionVal;
+            // Migra uma única vez do localStorage para o sessionStorage da aba atual e remove do localStorage global
+            const legacyVal = window.localStorage.getItem(key);
+            if (legacyVal !== null) {
+              window.sessionStorage.setItem(key, legacyVal);
+              window.localStorage.removeItem(key);
+              return legacyVal;
+            }
+          } catch {
+            // ignore storage errors
+          }
+          return null;
+        },
+        setItem: (key: string, value: string): void => {
+          try {
+            window.sessionStorage.setItem(key, value);
+            window.localStorage.removeItem(key);
+          } catch {
+            // ignore storage errors
+          }
+        },
+        removeItem: (key: string): void => {
+          try {
+            window.sessionStorage.removeItem(key);
+            window.localStorage.removeItem(key);
+          } catch {
+            // ignore storage errors
+          }
+        },
+      }
+    : undefined;
+
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        storage: tabSessionStorage,
       },
     })
   : null;

@@ -86,6 +86,20 @@ export const DEFAULT_PAYMENT_SETTINGS: FarmPaymentSettings = {
 
 const STORAGE_KEY_PREFIX = 'spartan_payment_methods_config';
 
+function cloneDefaultPaymentSettings(): FarmPaymentSettings {
+  return {
+    ...DEFAULT_PAYMENT_SETTINGS,
+    pixKey: '',
+    pixBeneficiary: '',
+    methods: {
+      pix: { ...DEFAULT_PAYMENT_SETTINGS.methods.pix },
+      credito: { ...DEFAULT_PAYMENT_SETTINGS.methods.credito },
+      debito: { ...DEFAULT_PAYMENT_SETTINGS.methods.debito },
+      dinheiro: { ...DEFAULT_PAYMENT_SETTINGS.methods.dinheiro },
+    },
+  };
+}
+
 export class PaymentMethodsService {
   private static currentUserId: string | null = null;
 
@@ -98,32 +112,34 @@ export class PaymentMethodsService {
       // ignore storage errors
     }
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('spartan_payment_settings_updated'));
+      window.dispatchEvent(
+        new CustomEvent('spartan_payment_settings_updated', { detail: { userId } })
+      );
     }
   }
 
   private static getScopedKey(userId?: string | null): string | null {
-    const resolvedId = userId ?? this.currentUserId;
+    const resolvedId = userId !== undefined ? userId : this.currentUserId;
     if (!resolvedId) return null;
     return `${STORAGE_KEY_PREFIX}_${resolvedId}`;
   }
 
   private static normalizeSettings(parsed: Partial<FarmPaymentSettings> | null | undefined): FarmPaymentSettings {
+    const base = cloneDefaultPaymentSettings();
     if (!parsed || typeof parsed !== 'object') {
-      return {
-        ...DEFAULT_PAYMENT_SETTINGS,
-        methods: { ...DEFAULT_PAYMENT_SETTINGS.methods },
-      };
+      return base;
     }
     const methods = {
-      ...DEFAULT_PAYMENT_SETTINGS.methods,
-      ...(parsed.methods || {}),
+      pix: { ...base.methods.pix, ...(parsed.methods?.pix || {}) },
+      credito: { ...base.methods.credito, ...(parsed.methods?.credito || {}) },
+      debito: { ...base.methods.debito, ...(parsed.methods?.debito || {}) },
+      dinheiro: { ...base.methods.dinheiro, ...(parsed.methods?.dinheiro || {}) },
     };
     const pixDiscount = methods.pix?.discountPercent ?? parsed.pixDiscountPercent ?? 5;
     const cashDiscount = methods.dinheiro?.discountPercent ?? parsed.cashDiscountPercent ?? 5;
 
     return {
-      ...DEFAULT_PAYMENT_SETTINGS,
+      ...base,
       ...parsed,
       pixKey: typeof parsed.pixKey === 'string' ? parsed.pixKey : '',
       pixBeneficiary: typeof parsed.pixBeneficiary === 'string' ? parsed.pixBeneficiary : '',
@@ -134,21 +150,22 @@ export class PaymentMethodsService {
   }
 
   /**
-   * Obtém as configurações de formas de pagamento salvas exclusivamente para o usuário ativo
+   * Obtém as configurações de formas de pagamento salvas exclusivamente para o usuário informado
    */
   static getSettings(userId?: string | null): FarmPaymentSettings {
     try {
       const storageKey = this.getScopedKey(userId);
-      if (storageKey) {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) {
-          return this.normalizeSettings(JSON.parse(stored));
-        }
+      if (!storageKey) {
+        return cloneDefaultPaymentSettings();
+      }
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        return this.normalizeSettings(JSON.parse(stored));
       }
     } catch (e) {
       console.warn('Erro ao ler configurações de pagamento do localStorage:', e);
     }
-    return this.normalizeSettings(null);
+    return cloneDefaultPaymentSettings();
   }
 
   /**
@@ -159,28 +176,56 @@ export class PaymentMethodsService {
   }
 
   /**
-   * Sincroniza configurações de pagamento do banco de dados Supabase (isoladas por user_id)
+   * Sincroniza configurações de pagamento do banco de dados Supabase (isoladas estritamente por user_id)
    */
   static async syncFromSupabase(userId: string): Promise<FarmPaymentSettings> {
+    if (!userId) return cloneDefaultPaymentSettings();
     this.currentUserId = userId;
-    if (!supabase || !userId) return this.getSettings(userId);
+    if (!supabase) return this.getSettings(userId);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUserId = sessionData?.session?.user?.id;
+      if (sessionUserId && sessionUserId !== userId) {
+        return cloneDefaultPaymentSettings();
+      }
+
       const { data, error } = await supabase
         .from('spartan_user_settings')
-        .select('payment_settings')
+        .select('user_id, payment_settings')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!error && data?.payment_settings && Object.keys(data.payment_settings as object).length > 0) {
-        const normalized = this.normalizeSettings(data.payment_settings as Partial<FarmPaymentSettings>);
+      if (!error) {
         const storageKey = this.getScopedKey(userId);
-        if (storageKey) {
-          localStorage.setItem(storageKey, JSON.stringify(normalized));
+        if (
+          data &&
+          data.user_id === userId &&
+          data.payment_settings &&
+          Object.keys(data.payment_settings as object).length > 0
+        ) {
+          const normalized = this.normalizeSettings(data.payment_settings as Partial<FarmPaymentSettings>);
+          if (storageKey) {
+            localStorage.setItem(storageKey, JSON.stringify(normalized));
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('spartan_payment_settings_updated', { detail: { userId } })
+            );
+          }
+          return normalized;
+        } else {
+          // Banco confirma que este usuário ainda não tem configurações salvas: garante estado limpo
+          const clean = cloneDefaultPaymentSettings();
+          if (storageKey) {
+            localStorage.setItem(storageKey, JSON.stringify(clean));
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('spartan_payment_settings_updated', { detail: { userId } })
+            );
+          }
+          return clean;
         }
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('spartan_payment_settings_updated'));
-        }
-        return normalized;
       }
     } catch (e) {
       console.warn('Não foi possível sincronizar configurações de pagamento do Supabase:', e);
@@ -193,7 +238,10 @@ export class PaymentMethodsService {
    */
   static saveSettings(settings: FarmPaymentSettings, userId?: string | null): boolean {
     try {
-      const effectiveUserId = userId ?? this.currentUserId;
+      const effectiveUserId = userId !== undefined ? userId : this.currentUserId;
+      if (!effectiveUserId) {
+        return false;
+      }
       const storageKey = this.getScopedKey(effectiveUserId);
       const normalized = this.normalizeSettings(settings);
 
@@ -201,23 +249,32 @@ export class PaymentMethodsService {
         localStorage.setItem(storageKey, JSON.stringify(normalized));
       }
 
-      if (supabase && effectiveUserId) {
-        void Promise.resolve(
-          supabase
-            .from('spartan_user_settings')
-            .upsert(
-              {
-                user_id: effectiveUserId,
-                payment_settings: normalized,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'user_id' }
-            )
-        ).catch(err => console.warn('Erro ao persistir payment_settings no Supabase:', err));
+      if (supabase) {
+        void supabase.auth.getSession().then(({ data: sessionData }) => {
+          const activeAuthId = sessionData?.session?.user?.id;
+          // Jamais persiste no banco se o token ativo não pertencer exatamente ao effectiveUserId
+          if (!activeAuthId || activeAuthId !== effectiveUserId) {
+            return;
+          }
+          void Promise.resolve(
+            supabase!
+              .from('spartan_user_settings')
+              .upsert(
+                {
+                  user_id: effectiveUserId,
+                  payment_settings: normalized,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'user_id' }
+              )
+          ).catch(err => console.warn('Erro ao persistir payment_settings no Supabase:', err));
+        });
       }
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('spartan_payment_settings_updated'));
+        window.dispatchEvent(
+          new CustomEvent('spartan_payment_settings_updated', { detail: { userId: effectiveUserId } })
+        );
       }
       return true;
     } catch (e) {
