@@ -236,7 +236,10 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
             <div className="text-[11px] text-slate-400 space-y-1 leading-relaxed">
               <p>• Todos os projetos, filamentos, impressoras, faturas, chaves Pix e arquivos serão removidos.</p>
               <p className="text-emerald-400">
-                • O e-mail <strong>{clientToDelete.email}</strong> ficará totalmente livre caso o cliente queira criar uma nova conta do zero no futuro.
+                • O e-mail <strong>{clientToDelete.email}</strong> ficará livre caso o cliente queira criar uma nova conta do zero no futuro.
+              </p>
+              <p className="text-amber-400">
+                • Caso ele se cadastre novamente com este e-mail, <strong>não terá direito a novos 14 dias grátis</strong> (entrará bloqueado até ativação pelo Admin).
               </p>
             </div>
 
