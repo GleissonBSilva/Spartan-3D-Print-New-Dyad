@@ -144,17 +144,30 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
     return true;
   };
 
-  const updateProjetoStatus = async (id: string, newStatus: ProjetoImpressao3D['status']): Promise<boolean> => {
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message) return error.message;
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+      return (error as { message: string }).message;
+    }
+    return 'erro inesperado';
+  };
+
+  const updateProjetoStatus = async (
+    id: string,
+    newStatus: ProjetoImpressao3D['status'],
+    overridePrinterId?: string
+  ): Promise<boolean> => {
     const project = projetos.find(item => item.id === id);
     if (!project || !supabase) return false;
+    const effectivePrinterId = overridePrinterId || project.impressoraId;
     const startsProduction = newStatus === 'em_impressao' && !project.estoqueBaixado;
     if (startsProduction) {
-      if (!project.impressoraId) {
+      if (!effectivePrinterId) {
         toast.error('Selecione uma impressora antes de iniciar a produção.');
         return false;
       }
-      const printer = impressoras.find(item => item.id === project.impressoraId);
-      if (!printer || printer.status !== 'disponivel') {
+      const printer = impressoras.find(item => item.id === effectivePrinterId);
+      if (!printer || (printer.status !== 'disponivel' && printer.projetoAtualId !== id)) {
         toast.error(`A impressora ${printer?.nome || ''} não está disponível no momento. Escolha uma máquina livre para iniciar.`);
         return false;
       }
@@ -163,15 +176,28 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       const { error } = await supabase.rpc('spartan_set_project_status', { p_project_id: id, p_status: newStatus });
       if (error) throw error;
       await Promise.all([refreshFilamentos(), refreshImpressoras()]);
-      setProjetos(prev => prev.map(item => item.id === id ? { ...item, status: newStatus, estoqueBaixado: startsProduction || (item.estoqueBaixado && newStatus !== 'cancelado') } : item));
+      setProjetos(prev =>
+        prev.map(item =>
+          item.id === id
+            ? {
+                ...item,
+                impressoraId: effectivePrinterId || item.impressoraId,
+                status: newStatus,
+                estoqueBaixado: startsProduction || (item.estoqueBaixado && newStatus !== 'cancelado'),
+              }
+            : item
+        )
+      );
       if (newStatus === 'concluido') {
         toast.success(`Projeto "${project.nomePeca}" marcado como concluído! Impressora liberada.`);
+      } else if (newStatus === 'em_impressao') {
+        toast.success(`Produção de "${project.nomePeca}" iniciada com sucesso!`);
       } else {
         toast.success('Status do projeto atualizado.');
       }
       return true;
     } catch (error) {
-      toast.error(`Não foi possível atualizar o projeto: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+      toast.error(`Não foi possível atualizar o projeto: ${getErrorMessage(error)}`);
       return false;
     }
   };
@@ -216,7 +242,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       toast.success('Projeto atualizado.');
       return true;
     } catch (error) {
-      toast.error(`Não foi possível editar o projeto: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+      toast.error(`Não foi possível editar o projeto: ${getErrorMessage(error)}`);
       return false;
     }
   };
@@ -238,7 +264,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       toast.success('Projeto excluído.');
       return true;
     } catch (error) {
-      toast.error(`Não foi possível excluir o projeto: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+      toast.error(`Não foi possível excluir o projeto: ${getErrorMessage(error)}`);
       return false;
     }
   };

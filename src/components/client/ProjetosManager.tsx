@@ -120,9 +120,11 @@ export const ProjetosManager: React.FC = () => {
     try {
       const updated = await updateProjeto(startProductionProject.id, { impressoraId: selectedStartPrinterId });
       if (updated) {
-        updateProjetoStatus(startProductionProject.id, 'em_impressao');
-        setStartProductionProject(null);
-        setSelectedStartPrinterId('');
+        const started = await updateProjetoStatus(startProductionProject.id, 'em_impressao', selectedStartPrinterId);
+        if (started !== false) {
+          setStartProductionProject(null);
+          setSelectedStartPrinterId('');
+        }
       }
     } catch {
       toast.error('Não foi possível alocar a impressora.');
