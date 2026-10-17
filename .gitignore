@@ -34,3 +34,6 @@ dist-ssr
 .dyad/
 supabase/.temp/
 .vercel/
+
+.env*
+!.env.example
