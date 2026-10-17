@@ -12,13 +12,15 @@ BEGIN;
 
 -- 1. Se existir qualquer perfil compartilhando o mesmo company_id com outro usuário,
 -- cria uma company exclusiva para cada usuário adicional para garantir isolamento 1:1.
+ALTER TABLE public.spartan_profiles DISABLE TRIGGER USER;
+
 DO $$
 DECLARE
   r RECORD;
   v_new_company_id UUID;
 BEGIN
   FOR r IN
-    SELECT p.id AS profile_id, p.name, p.email, p.plan, p.status, p.company_id
+    SELECT p.id AS profile_id, p.company_name, p.full_name, p.email, p.company_id
     FROM public.spartan_profiles p
     WHERE p.company_id IS NOT NULL
       AND EXISTS (
@@ -29,13 +31,10 @@ BEGIN
           AND (p2.created_at < p.created_at OR (p2.created_at = p.created_at AND p2.id < p.id))
       )
   LOOP
-    INSERT INTO public.spartan_companies (name, owner_user_id, user_id, plan, status)
+    INSERT INTO public.spartan_companies (name, user_id)
     VALUES (
-      COALESCE(NULLIF(BTRIM(r.name), ''), split_part(COALESCE(r.email, 'cliente'), '@', 1)),
-      r.profile_id,
-      r.profile_id,
-      COALESCE(r.plan, 'trial'),
-      COALESCE(r.status, 'trialing')
+      COALESCE(NULLIF(BTRIM(r.company_name), ''), NULLIF(BTRIM(r.full_name), ''), split_part(COALESCE(r.email, 'Minha farm 3D'), '@', 1)),
+      r.profile_id
     )
     RETURNING id INTO v_new_company_id;
 
@@ -62,8 +61,11 @@ BEGIN
     UPDATE public.spartan_ai_conversations SET company_id = v_new_company_id WHERE user_id = r.profile_id;
     UPDATE public.spartan_notifications SET company_id = v_new_company_id WHERE user_id = r.profile_id;
     UPDATE public.spartan_push_subscriptions SET company_id = v_new_company_id WHERE user_id = r.profile_id;
+    UPDATE public.spartan_user_settings SET company_id = v_new_company_id WHERE user_id = r.profile_id;
   END LOOP;
 END $$;
+
+ALTER TABLE public.spartan_profiles ENABLE TRIGGER USER;
 
 -- 2. Atualiza spartan_admin_delete_user para filtrar ESTRITAMENTE pelo p_target_user_id,
 -- garantindo que nenhum dado de outro cliente seja jamais afetado.
@@ -181,7 +183,7 @@ BEGIN
   END IF;
 
   DELETE FROM public.spartan_companies
-  WHERE (user_id = p_target_user_id OR owner_user_id = p_target_user_id)
+  WHERE user_id = p_target_user_id
     AND NOT EXISTS (
       SELECT 1 FROM public.spartan_profiles p WHERE p.company_id = public.spartan_companies.id
     );
