@@ -16,12 +16,26 @@ import { ClientPlansPricing } from '@/components/client/ClientPlansPricing';
 import { ClientSettingsForm } from '@/components/client/ClientSettingsForm';
 import { ClientUpgradeModal } from '@/components/client/ClientUpgradeModal';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleDollarSign, Clock3, Cpu, FolderKanban, Layers, Plus, RefreshCw, TrendingUp, Wrench } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const money = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const periodOptions = [{ value: 1, label: 'Hoje' }, { value: 7, label: '7 dias' }, { value: 30, label: '30 dias' }, { value: 90, label: '90 dias' }] as const;
 const dateInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const parseAndSanitizeEstimatedSeconds = (inputTime: number | string): number => {
+  let totalSeconds = 0;
+  if (typeof inputTime === 'string' && inputTime.includes(':')) {
+    const parts = inputTime.split(':').map(Number);
+    totalSeconds = (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+  } else {
+    const numericValue = Number(inputTime) || 0;
+    totalSeconds = numericValue > 1000 && !String(inputTime).includes('.') ? numericValue : Math.round(numericValue * 3600);
+  }
+  return totalSeconds > 720 * 3600 || isNaN(totalSeconds) || totalSeconds <= 0 ? 18 * 3600 : totalSeconds;
+};
 
 export const ClientPortal: React.FC = () => {
   const currentPath = useLocation().pathname;
@@ -132,6 +146,104 @@ export const ClientPortal: React.FC = () => {
     return { capacityHours, completedHours, occupancy, printerUtilization, failureEvents, overdueProjects, upcomingDeliveries, maintenanceDue, materialKg, healthScore, healthLabel };
   }, [customEnd, customPeriod, customStart, historicoImpressoras, impressoras, lowStock.length, maintenanceDueNow, overview.materials, overdueProjectsNow, period, projetos, todayKey]);
 
+  const [forecastModalOpen, setForecastModalOpen] = useState(false);
+
+  // Cálculo da Previsão de Conclusão para impressoras em atividade (inclusive múltiplas máquinas)
+  const completionForecast = useMemo(() => {
+    const activePrinters = impressoras.filter(p => p.status === 'imprimindo' || (p.status === 'pausada' && Boolean(p.projetoAtualId)));
+
+    if (!activePrinters.length) {
+      return {
+        hasActive: false,
+        count: 0,
+        mainValue: 'Todas livres',
+        detail: 'Nenhuma máquina imprimindo no momento',
+        items: [] as Array<{
+          printerId: string;
+          printerName: string;
+          printerStatus: string;
+          projectName: string;
+          progress: number;
+          remSec: number;
+          targetDate: Date;
+          datePrefix: string;
+          remTimeStr: string;
+        }>,
+      };
+    }
+
+    const now = Date.now();
+    const today = new Date();
+
+    const items = activePrinters.map(printer => {
+      const currentProject = projetos.find(proj => proj.id === printer.projetoAtualId);
+      const progress = Math.min(100, Math.max(0, printer.progressoPercentual ?? 0));
+
+      const rawTime = currentProject?.tempoEstimadoHoras ?? 18;
+      const totalSec = parseAndSanitizeEstimatedSeconds(rawTime);
+      const remSec = Math.max(0, Math.round(totalSec * (1 - progress / 100)));
+      const targetDate = new Date(now + remSec * 1000);
+
+      const isToday =
+        targetDate.getDate() === today.getDate() &&
+        targetDate.getMonth() === today.getMonth() &&
+        targetDate.getFullYear() === today.getFullYear();
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      const isTomorrow =
+        targetDate.getDate() === tomorrow.getDate() &&
+        targetDate.getMonth() === tomorrow.getMonth() &&
+        targetDate.getFullYear() === tomorrow.getFullYear();
+
+      const timeStr = targetDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const datePrefix = isToday
+        ? `Hoje às ${timeStr}`
+        : isTomorrow
+        ? `Amanhã às ${timeStr}`
+        : `${targetDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${timeStr}`;
+
+      const remHours = Math.floor(remSec / 3600);
+      const remMins = Math.floor((remSec % 3600) / 60);
+      const remTimeStr = remHours > 0 ? `${remHours}h ${String(remMins).padStart(2, '0')}m` : `${remMins}m`;
+
+      return {
+        printerId: printer.id,
+        printerName: printer.nome,
+        printerStatus: printer.status,
+        projectName: currentProject?.nomePeca || printer.projetoAtual || 'Peça em impressão',
+        progress,
+        remSec,
+        targetDate,
+        datePrefix,
+        remTimeStr,
+      };
+    }).sort((a, b) => a.remSec - b.remSec);
+
+    if (items.length === 1) {
+      const single = items[0];
+      return {
+        hasActive: true,
+        count: 1,
+        mainValue: single.datePrefix,
+        detail: `${single.printerName} · ~${single.remTimeStr} restantes`,
+        items,
+      };
+    }
+
+    // Múltiplas impressoras ativas
+    const nextPrinter = items[0];
+    const lastPrinter = items[items.length - 1];
+
+    return {
+      hasActive: true,
+      count: items.length,
+      mainValue: nextPrinter.datePrefix,
+      detail: `Próxima (${nextPrinter.printerName}) · Última: ${lastPrinter.datePrefix}`,
+      items,
+    };
+  }, [impressoras, projetos]);
+
   return <DashboardLayout title={title} subtitle={`Estúdio: ${user?.companyName || 'Minha farm'} · Plano: ${currentPlan.name}`} badgeText={currentPlan.badge || 'MAKER ATIVO'}>
     {isOverview && <div className="mx-auto max-w-6xl space-y-6">
       <section className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-white">Visão administrativa da farm</h2><p className="text-sm text-slate-400">Indicadores calculados a partir dos projetos, máquinas e estoque registrados.</p><p className="mt-1 text-[11px] text-slate-500">Os valores de projetos são estimativas; pagamentos conciliados não são registrados.</p></div><div className="flex flex-wrap items-center gap-2"><div className="flex gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1">{periodOptions.map(option => <button key={option.value} onClick={() => { setPeriod(option.value); setCustomPeriod(false); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${!customPeriod && period === option.value ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>{option.label}</button>)}<button onClick={() => setCustomPeriod(true)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${customPeriod ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>Personalizado</button></div><button type="button" onClick={() => void handleRefresh()} disabled={refreshing} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold text-slate-200 hover:border-indigo-500 disabled:opacity-60"><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />Atualizar</button></div>{customPeriod && <div className="flex w-full flex-wrap items-center justify-end gap-2 text-xs text-slate-400"><label>De <input type="date" value={customStart} max={customEnd} onChange={event => setCustomStart(event.target.value)} className="ml-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-slate-200" /></label><label>Até <input type="date" value={customEnd} min={customStart} max={todayKey} onChange={event => setCustomEnd(event.target.value)} className="ml-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-slate-200" /></label></div>}</section>
@@ -140,7 +252,15 @@ export const ClientPortal: React.FC = () => {
         <MetricCard icon={CircleDollarSign} label="Valor de projetos concluídos" value={money(overview.revenue)} detail={`${overview.completed.length} projetos no período`} tone="emerald" />
         <MetricCard icon={TrendingUp} label="Lucro estimado" value={money(overview.profit)} detail={`Custo estimado: ${money(overview.cost)}`} tone="indigo" />
         <MetricCard icon={TrendingUp} label="Margem estimada" value={`${overview.margin.toFixed(1)}%`} detail="Nos projetos concluídos" tone="cyan" />
-        <MetricCard icon={Clock3} label="Horas previstas" value={`${overview.hours.toFixed(1)} h`} detail={`${overview.completed.length} projetos concluídos`} tone="amber" />
+        <MetricCard
+          icon={Clock3}
+          label="Previsão de conclusão"
+          value={completionForecast.mainValue}
+          detail={completionForecast.detail}
+          tone="amber"
+          badge={completionForecast.items.length > 1 ? `${completionForecast.items.length} máquinas` : undefined}
+          onClick={completionForecast.items.length > 0 ? () => setForecastModalOpen(true) : undefined}
+        />
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -240,12 +360,123 @@ export const ClientPortal: React.FC = () => {
     {isFaturas && <ClientInvoicesList invoices={invoices} currentPlan={currentPlan} onOpenPixModal={openInvoiceCheckout} />}
     {isConfig && <ClientSettingsForm user={user} onUpdateUserProfile={updateUserProfile} />}
     <ClientUpgradeModal isOpen={upgradeModal} onClose={() => setUpgradeModal(false)} plans={plans} currentPlan={currentPlan} onUpgrade={handleUpgrade} />
+
+    {/* Modal de Previsão de Conclusão detalhada para cada impressora ativa */}
+    <Dialog open={forecastModalOpen} onOpenChange={setForecastModalOpen}>
+      <DialogContent className="max-w-xl bg-slate-900 border-slate-800 text-white rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+            <Clock3 className="w-5 h-5 text-amber-400" />
+            Previsão de Conclusão das Impressoras
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-400">
+            Acompanhamento detalhado do término das impressões em andamento na sua farm.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {completionForecast.items.map(item => (
+            <div key={item.printerId} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-white truncate flex items-center gap-1.5">
+                    🖨️ {item.printerName}
+                  </h4>
+                  <p className="text-xs text-slate-400 truncate mt-0.5">
+                    Projeto: <strong className="text-slate-200">{item.projectName}</strong>
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-bold text-amber-300 block">
+                    {item.datePrefix}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    ~{item.remTimeStr} restantes
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Progresso atual</span>
+                  <strong className="text-sky-300">{Number(item.progress).toFixed(1)}%</strong>
+                </div>
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-sky-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(0, item.progress))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+          <Link
+            to="/cliente/impressoras"
+            onClick={() => setForecastModalOpen(false)}
+            className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          >
+            Abrir Parque de Impressoras <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setForecastModalOpen(false)}
+            className="border-slate-700 bg-slate-950 text-xs text-slate-300 hover:text-white"
+          >
+            Fechar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </DashboardLayout>;
 };
 
-const MetricCard: React.FC<{ icon: typeof Cpu; label: string; value: string; detail: string; tone: 'indigo' | 'cyan' | 'emerald' | 'amber' }> = ({ icon: Icon, label, value, detail, tone }) => {
-  const colors = { indigo: 'text-indigo-400 bg-indigo-500/10', cyan: 'text-cyan-400 bg-cyan-500/10', emerald: 'text-emerald-400 bg-emerald-500/10', amber: 'text-amber-400 bg-amber-500/10' };
-  return <Card className="rounded-2xl border-slate-800 bg-slate-900 p-4"><div className="flex items-center justify-between"><span className="text-sm text-slate-400">{label}</span><span className={`rounded-lg p-2 ${colors[tone]}`}><Icon className="h-4 w-4" /></span></div><p className="mt-3 text-2xl font-black text-white">{value}</p><p className="text-xs text-slate-500">{detail}</p></Card>;
+const MetricCard: React.FC<{
+  icon: typeof Cpu;
+  label: string;
+  value: string;
+  detail: string;
+  tone: 'indigo' | 'cyan' | 'emerald' | 'amber';
+  badge?: string;
+  onClick?: () => void;
+}> = ({ icon: Icon, label, value, detail, tone, badge, onClick }) => {
+  const colors = {
+    indigo: 'text-indigo-400 bg-indigo-500/10',
+    cyan: 'text-cyan-400 bg-cyan-500/10',
+    emerald: 'text-emerald-400 bg-emerald-500/10',
+    amber: 'text-amber-400 bg-amber-500/10',
+  };
+
+  return (
+    <Card
+      onClick={onClick}
+      className={`rounded-2xl border-slate-800 bg-slate-900 p-4 transition-all ${
+        onClick ? 'cursor-pointer hover:border-amber-500/60 hover:bg-slate-850/80 group' : ''
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-slate-400 flex items-center gap-1.5">
+          {label}
+          {badge && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              {badge}
+            </span>
+          )}
+        </span>
+        <span className={`rounded-lg p-2 ${colors[tone]} ${onClick ? 'group-hover:scale-110 transition-transform' : ''}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-3 text-2xl font-black text-white">{value}</p>
+      <p className="text-xs text-slate-500 flex items-center justify-between mt-1">
+        <span className="truncate mr-2">{detail}</span>
+        {onClick && <span className="text-[11px] text-amber-400 font-semibold shrink-0 group-hover:underline">Ver todas</span>}
+      </p>
+    </Card>
+  );
 };
 const HealthFact: React.FC<{ label: string; value: string }> = ({ label, value }) => <div className="rounded-lg bg-slate-950 p-3"><p className="text-slate-500">{label}</p><strong className="mt-1 block text-slate-200">{value}</strong></div>;
 const QuickLink: React.FC<{ href: string; icon: typeof Layers; label: string; detail: string }> = ({ href, icon: Icon, label, detail }) => <Link to={href} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 hover:border-indigo-500/50"><span className="rounded-xl bg-indigo-500/10 p-2 text-indigo-300"><Icon className="h-4 w-4" /></span><span><strong className="block text-sm text-white">{label}</strong><span className="text-xs text-slate-400">{detail}</span></span><ArrowRight className="ml-auto h-4 w-4 text-slate-500" /></Link>;
