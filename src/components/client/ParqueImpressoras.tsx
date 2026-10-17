@@ -71,22 +71,39 @@ export const ParqueImpressoras: React.FC = () => {
   }, [user?.id]);
 
   // Filtra as impressoras removendo as que foram marcadas como deletadas localmente
+  // e garante vínculo automático caso haja um projeto 'em_impressao' alocado para a máquina
   const impressoras = useMemo(() => {
     return rawImpressoras
       .filter(p => !deletedPrinterIds.includes(p.id))
       .map(p => {
         const custom = customInvestments[p.id];
+        const activeProjForPrinter = projetos.find(
+          proj =>
+            proj.status === 'em_impressao' &&
+            (proj.id === p.projetoAtualId || proj.impressoraId === p.id)
+        );
+
+        const effectiveStatus: Impressora3D['status'] =
+          activeProjForPrinter && p.status === 'disponivel' ? 'imprimindo' : p.status;
+
+        const basePrinter: Impressora3D = {
+          ...p,
+          status: effectiveStatus,
+          projetoAtualId: p.projetoAtualId || activeProjForPrinter?.id,
+          projetoAtual: p.projetoAtual || activeProjForPrinter?.nomePeca,
+        };
+
         if (custom) {
           return {
-            ...p,
+            ...basePrinter,
             custoInvestimento: custom.custoInvestimento,
             vidaUtilHoras: custom.vidaUtilHoras,
             depreciacaoHora: custom.depreciacaoHora
           };
         }
-        return p;
+        return basePrinter;
       });
-  }, [rawImpressoras, deletedPrinterIds, customInvestments]);
+  }, [rawImpressoras, deletedPrinterIds, customInvestments, projetos]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [maintenancePrinter, setMaintenancePrinter] = useState<string | null>(null);
@@ -106,21 +123,54 @@ export const ParqueImpressoras: React.FC = () => {
   const [remainingSecondsMap, setRemainingSecondsMap] = useState<Record<string, number>>({});
   const completingPrintersRef = React.useRef<Set<string>>(new Set());
 
+  const getTimerStorageKey = () => (user?.id ? `ph3d_active_print_timers_${user.id}` : null);
+
+  const readStoredTimers = (): Record<string, { projectId: string; targetEndMs: number; pausedRemainingSecs?: number; totalSecs: number }> => {
+    const key = getTimerStorageKey();
+    if (!key) return {};
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const writeStoredTimers = (timers: Record<string, { projectId: string; targetEndMs: number; pausedRemainingSecs?: number; totalSecs: number }>) => {
+    const key = getTimerStorageKey();
+    if (!key) return;
+    try {
+      localStorage.setItem(key, JSON.stringify(timers));
+    } catch {
+      // ignore storage quota errors
+    }
+  };
+
   const handleConcluirTrabalho = async (printer: Impressora3D, isAuto = false) => {
     if (completingPrintersRef.current.has(printer.id)) return;
     completingPrintersRef.current.add(printer.id);
 
-    const projectId = printer.projetoAtualId;
+    const projectId = printer.projetoAtualId || projetos.find(proj => proj.impressoraId === printer.id && proj.status === 'em_impressao')?.id;
     const currentProject = projetos.find(proj => proj.id === projectId);
     const projectName = currentProject?.nomePeca || printer.projetoAtual || 'Projeto';
 
     try {
-      // 1. Zera e limpa do mapa de contagem local
+      // 1. Zera e limpa do mapa de contagem local e do localStorage
       setRemainingSecondsMap(prev => {
         const next = { ...prev };
         delete next[printer.id];
         return next;
       });
+      setProgressDraft(prev => {
+        const next = { ...prev };
+        delete next[printer.id];
+        return next;
+      });
+      const stored = readStoredTimers();
+      if (stored[printer.id]) {
+        delete stored[printer.id];
+        writeStoredTimers(stored);
+      }
 
       // 2. Dá baixa no projeto e libera a impressora
       if (projectId) {
@@ -161,56 +211,69 @@ export const ParqueImpressoras: React.FC = () => {
   const [vidaUtilHoras, setVidaUtilHoras] = useState<number | string>(5000); 
 
   useEffect(() => {
-    const printingPrinters = impressoras.filter(p => p.status === 'imprimindo');
-    if (printingPrinters.length === 0) return;
+    const activePrinters = impressoras.filter(p => (p.status === 'imprimindo' || p.status === 'pausada') && p.projetoAtualId);
+    if (activePrinters.length === 0) return;
 
-    setRemainingSecondsMap(prev => {
-      const next = { ...prev };
-      let changed = false;
-      printingPrinters.forEach(p => {
-        if (next[p.id] === undefined) {
-          const currentProject = projetos.find(proj => proj.id === p.projetoAtualId);
-          const rawTempo = currentProject?.tempoEstimadoHoras ?? 18;
-          const totalSecs = parseAndSanitizeEstimatedSeconds(rawTempo);
-          const progress = p.progressoPercentual ?? 0;
-          const remaining = Math.round(totalSecs * (1 - (progress / 100)));
-          next[p.id] = remaining;
-          changed = true;
-          // Se carregar já zerado, dá baixa e libera automaticamente
-          if (remaining <= 0) {
-            void handleConcluirTrabalho(p, true);
-          }
+    const syncTick = () => {
+      const now = Date.now();
+      const stored = readStoredTimers();
+      let storedChanged = false;
+      const nextSecs: Record<string, number> = {};
+      const nextProgress: Record<string, number> = {};
+
+      activePrinters.forEach(p => {
+        const projectId = p.projetoAtualId!;
+        const currentProject = projetos.find(proj => proj.id === projectId);
+        const rawTempo = currentProject?.tempoEstimadoHoras ?? 18;
+        const totalSecs = Math.max(1, parseAndSanitizeEstimatedSeconds(rawTempo));
+        const dbProgress = Math.min(100, Math.max(0, Number(p.progressoPercentual ?? 0)));
+        const defaultRemaining = Math.max(1, Math.round(totalSecs * (1 - dbProgress / 100)));
+
+        let entry = stored[p.id];
+        if (!entry || entry.projectId !== projectId || entry.totalSecs !== totalSecs) {
+          entry = {
+            projectId,
+            totalSecs,
+            targetEndMs: now + defaultRemaining * 1000,
+            pausedRemainingSecs: p.status === 'pausada' ? defaultRemaining : undefined,
+          };
+          stored[p.id] = entry;
+          storedChanged = true;
+        } else if (p.status === 'pausada' && entry.pausedRemainingSecs === undefined) {
+          entry.pausedRemainingSecs = Math.max(0, Math.round((entry.targetEndMs - now) / 1000));
+          storedChanged = true;
+        } else if (p.status === 'imprimindo' && entry.pausedRemainingSecs !== undefined) {
+          entry.targetEndMs = now + entry.pausedRemainingSecs * 1000;
+          delete entry.pausedRemainingSecs;
+          storedChanged = true;
+        }
+
+        const remaining =
+          p.status === 'pausada'
+            ? (entry.pausedRemainingSecs ?? defaultRemaining)
+            : Math.max(0, Math.round((entry.targetEndMs - now) / 1000));
+
+        nextSecs[p.id] = remaining;
+        const calcProgress = Number((((totalSecs - remaining) / totalSecs) * 100).toFixed(2));
+        nextProgress[p.id] = Math.min(100, Math.max(0, calcProgress));
+
+        if (p.status === 'imprimindo' && remaining <= 0) {
+          void handleConcluirTrabalho(p, true);
         }
       });
-      return changed ? next : prev;
-    });
 
-    const interval = setInterval(() => {
-      setRemainingSecondsMap(prevSecs => {
-        let secsChanged = false;
-        const nextSecs = { ...prevSecs };
+      if (storedChanged) {
+        writeStoredTimers(stored);
+      }
 
-        printingPrinters.forEach(p => {
-          const currentSecs = nextSecs[p.id];
-          if (currentSecs !== undefined) {
-            if (currentSecs > 1) {
-              nextSecs[p.id] = currentSecs - 1;
-              secsChanged = true;
-            } else {
-              // Tempo zerou de forma automática!
-              nextSecs[p.id] = 0;
-              secsChanged = true;
-              void handleConcluirTrabalho(p, true);
-            }
-          }
-        });
+      setRemainingSecondsMap(prev => ({ ...prev, ...nextSecs }));
+      setProgressDraft(prev => ({ ...prev, ...nextProgress }));
+    };
 
-        return secsChanged ? nextSecs : prevSecs;
-      });
-    }, 1000);
-
+    syncTick();
+    const interval = setInterval(syncTick, 1000);
     return () => clearInterval(interval);
-  }, [impressoras, projetos]);
+  }, [impressoras, projetos, user?.id]);
 
   const counts = useMemo(() => ({
     active: impressoras.filter(item => item.status === 'disponivel' || item.status === 'imprimindo').length,
@@ -461,17 +524,26 @@ export const ParqueImpressoras: React.FC = () => {
                   value={progress}
                   onChange={event => {
                     const val = Number(event.target.value);
+                    const newRemaining = Math.max(0, Math.round(totalSecondsEstimated * (1 - (val / 100))));
                     setProgressDraft(previous => ({ ...previous, [printer.id]: val }));
-                    setRemainingSecondsMap(previous => ({ ...previous, [printer.id]: Math.round(totalSecondsEstimated * (1 - (val / 100))) }));
+                    setRemainingSecondsMap(previous => ({ ...previous, [printer.id]: newRemaining }));
+                    if (printer.projetoAtualId) {
+                      const stored = readStoredTimers();
+                      stored[printer.id] = {
+                        projectId: printer.projetoAtualId,
+                        totalSecs: Math.max(1, totalSecondsEstimated),
+                        targetEndMs: Date.now() + newRemaining * 1000,
+                        pausedRemainingSecs: printer.status === 'pausada' ? newRemaining : undefined,
+                      };
+                      writeStoredTimers(stored);
+                    }
                   }}
                   onPointerUp={event => {
                     const value = Number(event.currentTarget.value);
                     if (value >= 100) {
                       void handleConcluirTrabalho(printer, false);
                     } else {
-                      void updatePrinterProgress(printer.id, value).then(saved => {
-                        if (saved) setProgressDraft(previous => { const next = { ...previous }; delete next[printer.id]; return next; });
-                      });
+                      void updatePrinterProgress(printer.id, Math.round(value));
                     }
                   }}
                   onKeyUp={event => {
@@ -479,7 +551,7 @@ export const ParqueImpressoras: React.FC = () => {
                     if (value >= 100) {
                       void handleConcluirTrabalho(printer, false);
                     } else {
-                      void updatePrinterProgress(printer.id, value);
+                      void updatePrinterProgress(printer.id, Math.round(value));
                     }
                   }}
                   disabled={!['imprimindo', 'pausada'].includes(printer.status)}

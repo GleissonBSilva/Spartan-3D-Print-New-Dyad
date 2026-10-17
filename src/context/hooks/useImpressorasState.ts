@@ -83,7 +83,9 @@ export function useImpressorasState(currentPlan: Plan) {
 
   const updatePrinterProgress = async (id: string, progress: number): Promise<boolean> => {
     if (!supabase) return false;
-    const { error } = await supabase.rpc('spartan_update_printer_progress', { p_printer_id: id, p_progress: progress });
+    const safeProgress = Math.min(100, Math.max(0, Math.round(Number(progress) || 0)));
+    setImpressoras(prev => prev.map(p => p.id === id ? { ...p, progressoPercentual: safeProgress } : p));
+    const { error } = await supabase.rpc('spartan_update_printer_progress', { p_printer_id: id, p_progress: safeProgress });
     if (error) { toast.error(`Não foi possível atualizar o progresso: ${error.message}`); return false; }
     await refreshImpressoras();
     return true;
