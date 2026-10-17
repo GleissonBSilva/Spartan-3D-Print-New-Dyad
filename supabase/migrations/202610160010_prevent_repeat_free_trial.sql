@@ -421,7 +421,7 @@ BEGIN
     PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin_id::text, 'role', 'authenticated')::text, true);
     EXECUTE 'SET LOCAL ROLE authenticated';
     PERFORM public.spartan_admin_delete_user(v_uid_1);
-    EXECUTE 'RESET ROLE';
+    EXECUTE 'SET LOCAL ROLE postgres';
 
     -- 2º Cadastro com o mesmo e-mail
     INSERT INTO auth.users (
@@ -442,7 +442,7 @@ BEGIN
     -- Limpa o 2º usuário de teste e seu hash temporário
     EXECUTE 'SET LOCAL ROLE authenticated';
     PERFORM public.spartan_admin_delete_user(v_uid_2);
-    EXECUTE 'RESET ROLE';
+    EXECUTE 'SET LOCAL ROLE postgres';
     DELETE FROM public.spartan_used_trials WHERE email_hash = public.spartan_normalize_email_hash(v_test_email);
   END IF;
 END $$;
