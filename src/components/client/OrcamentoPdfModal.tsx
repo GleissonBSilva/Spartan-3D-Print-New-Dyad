@@ -29,14 +29,13 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
   const { user } = useAuth();
   if (!isOpen) return null;
 
-  const companyName = user?.companyName || 'SPARTAN3DPRINT LTDA';
-  const reference = projeto.id?.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase() || '526775';
+  const companyName = user?.companyName?.trim() || 'Meu Estúdio 3D';
+  const reference = projeto.id?.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase() || '000001';
   const createdDate = projeto.dataCriacao ? new Date(projeto.dataCriacao) : new Date();
   const quoteDate = createdDate.toLocaleDateString('pt-BR');
   const materials = projeto.materials || [];
-  const companyPhone = user?.companyPhone?.trim() || '+55 92 99146-3640';
-  const phoneDigits = companyPhone?.replace(/\D/g, '');
-  const productName = projeto.nomePeca || 'MARIA HELENA';
+  const companyPhone = user?.companyPhone?.trim() || '';
+  const productName = projeto.nomePeca?.trim() || 'Peça Impressa em 3D';
 
   // Busca a imagem em qualquer campo possível retornado pelo Supabase
   const productFoto =
@@ -49,8 +48,8 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
     projeto.image ||
     projeto.url;
 
-  // Configurações de pagamento da Farm
-  const settings = PaymentMethodsService.getSettings();
+  // Configurações de pagamento isoladas da Farm do usuário ativo
+  const settings = PaymentMethodsService.getSettings(user?.id);
   const downPaymentPercent = settings.downPaymentPercent || 50;
   const totalCobrado = Number(projeto.precoCobrado) || 0;
   const downPaymentAmount = Number(((totalCobrado * downPaymentPercent) / 100).toFixed(2));
@@ -192,9 +191,8 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
               <div>
                 <h1 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight leading-tight">{companyName}</h1>
                 <p className="text-[11px] sm:text-xs text-gray-500">Impressão 3D e manufatura aditiva</p>
-                <p className="text-[11px] sm:text-xs text-gray-500">Manaus - AM • CNPJ: 00.000.000/0001-00</p>
                 <p className="text-[11px] sm:text-xs text-gray-500">
-                  {[user?.email || 'gsroboticmania@gmail.com', companyPhone].filter(Boolean).join(' | ')}
+                  {[user?.email, companyPhone].filter(Boolean).join(' | ')}
                 </p>
               </div>
             </div>
@@ -227,12 +225,11 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
-                <p><strong className="text-gray-600">Razão / Cliente:</strong> {projeto.clienteNome || 'JAQUELINE'}</p>
-                <p><strong className="text-gray-600">Contato:</strong> {companyPhone}</p>
+                <p><strong className="text-gray-600">Razão / Cliente:</strong> {projeto.clienteNome || 'Cliente não informado'}</p>
+                {companyPhone && <p><strong className="text-gray-600">Contato da Farm:</strong> {companyPhone}</p>}
               </div>
               <div>
                 <p><strong className="text-gray-600">Produto / Projeto:</strong> {productName}</p>
-                <p><strong className="text-gray-600">Endereço:</strong> Manaus - AM</p>
               </div>
             </div>
           </section>
@@ -385,7 +382,7 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
             </div>
             <div>
               <div className="border-b border-gray-400 mb-1.5 w-4/5 mx-auto"></div>
-              <p className="font-medium text-gray-800">{projeto.clienteNome || 'JAQUELINE'}</p>
+              <p className="font-medium text-gray-800">{projeto.clienteNome || 'Cliente / Contratante'}</p>
             </div>
           </footer>
 

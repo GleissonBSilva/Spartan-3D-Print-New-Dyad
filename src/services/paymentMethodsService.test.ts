@@ -41,4 +41,38 @@ describe('PaymentMethodsService', () => {
     expect(res.adjustmentAmount).toBe(0);
     expect(res.downPaymentAmount).toBe(0);
   });
+
+  it('isolates payment settings strictly per userId without leaking Pix keys across tenants', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => store.set(k, String(v)),
+        removeItem: (k: string) => store.delete(k),
+        clear: () => store.clear(),
+      },
+      configurable: true,
+    });
+
+    PaymentMethodsService.setCurrentUser('user-a');
+    PaymentMethodsService.saveSettings(
+      {
+        ...mockSettings,
+        pixKey: 'chave-secreta-user-a',
+        pixBeneficiary: 'Estudio Alpha 3D',
+      },
+      'user-a'
+    );
+
+    // Troca de sessão para user-b (nova conta)
+    PaymentMethodsService.setCurrentUser('user-b');
+    const settingsUserB = PaymentMethodsService.getSettings('user-b');
+    expect(settingsUserB.pixKey).toBe('');
+    expect(settingsUserB.pixBeneficiary).toBe('');
+
+    // Confirma que os dados do user-a continuam íntegros apenas para user-a
+    const settingsUserA = PaymentMethodsService.getSettings('user-a');
+    expect(settingsUserA.pixKey).toBe('chave-secreta-user-a');
+    expect(settingsUserA.pixBeneficiary).toBe('Estudio Alpha 3D');
+  });
 });

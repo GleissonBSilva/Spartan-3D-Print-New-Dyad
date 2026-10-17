@@ -22,25 +22,38 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Estados do Papel de Parede da Farm
+  // Estados do Papel de Parede da Farm (estritamente isolados por user.id)
   const [bgImage, setBgImage] = useState<string>('');
   const [bgOpacity, setBgOpacity] = useState<number>(0.15);
   const [bgBlur, setBgBlur] = useState<number>(4);
   const wallpaperRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      const savedBg = localStorage.getItem('spartan_farm_wallpaper');
-      const savedOpacity = localStorage.getItem('spartan_farm_opacity');
-      const savedBlur = localStorage.getItem('spartan_farm_blur');
+    setClientName(user?.name || '');
+    setCompanyName(user?.companyName || '');
+    setCompanyPhone(user?.companyPhone || '');
+    setAvatar(user?.avatar || '');
+  }, [user?.id, user?.name, user?.companyName, user?.companyPhone, user?.avatar]);
 
-      if (savedBg) setBgImage(savedBg);
-      if (savedOpacity) setBgOpacity(Number(savedOpacity));
-      if (savedBlur) setBgBlur(Number(savedBlur));
+  useEffect(() => {
+    if (!user?.id) {
+      setBgImage('');
+      setBgOpacity(0.15);
+      setBgBlur(4);
+      return;
+    }
+    try {
+      const savedBg = localStorage.getItem(`spartan_farm_wallpaper_${user.id}`);
+      const savedOpacity = localStorage.getItem(`spartan_farm_opacity_${user.id}`);
+      const savedBlur = localStorage.getItem(`spartan_farm_blur_${user.id}`);
+
+      setBgImage(savedBg || '');
+      setBgOpacity(savedOpacity ? Number(savedOpacity) : 0.15);
+      setBgBlur(savedBlur ? Number(savedBlur) : 4);
     } catch (e) {
       console.error('Erro ao carregar configurações de papel de parede do localStorage:', e);
     }
-  }, []);
+  }, [user?.id]);
 
   const handleWallpaperUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -62,11 +75,30 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
   };
 
   const handleSaveWallpaper = () => {
+    if (!user?.id) {
+      toast.error('Entre na conta para salvar a aparência da sua farm.');
+      return;
+    }
     try {
-      localStorage.setItem('spartan_farm_wallpaper', bgImage);
-      localStorage.setItem('spartan_farm_opacity', String(bgOpacity));
-      localStorage.setItem('spartan_farm_blur', String(bgBlur));
-      
+      localStorage.setItem(`spartan_farm_wallpaper_${user.id}`, bgImage);
+      localStorage.setItem(`spartan_farm_opacity_${user.id}`, String(bgOpacity));
+      localStorage.setItem(`spartan_farm_blur_${user.id}`, String(bgBlur));
+
+      if (supabase) {
+        void Promise.resolve(
+          supabase
+            .from('spartan_user_settings')
+            .upsert(
+              {
+                user_id: user.id,
+                theme_settings: { bgOpacity, bgBlur, hasWallpaper: Boolean(bgImage) },
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id' }
+            )
+        ).catch(() => undefined);
+      }
+
       window.dispatchEvent(new Event('spartan_wallpaper_updated'));
       toast.success('Aparência e papel de parede atualizados!');
     } catch (e) {
@@ -78,9 +110,11 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
     setBgImage('');
     setBgOpacity(0.15);
     setBgBlur(4);
-    localStorage.removeItem('spartan_farm_wallpaper');
-    localStorage.removeItem('spartan_farm_opacity');
-    localStorage.removeItem('spartan_farm_blur');
+    if (user?.id) {
+      localStorage.removeItem(`spartan_farm_wallpaper_${user.id}`);
+      localStorage.removeItem(`spartan_farm_opacity_${user.id}`);
+      localStorage.removeItem(`spartan_farm_blur_${user.id}`);
+    }
     window.dispatchEvent(new Event('spartan_wallpaper_updated'));
     toast.info('Papel de parede removido.');
   };

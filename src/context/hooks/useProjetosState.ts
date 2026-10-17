@@ -71,23 +71,29 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
   const [projetos, setProjetos] = useState<ProjetoImpressao3D[]>([]);
 
   const refreshProjetos = useCallback(async () => {
-    if (!user?.companyId || !supabase) { setProjetos([]); return; }
-    const { data, error } = await supabase.from('spartan_projects').select('*').eq('company_id', user.companyId).order('created_at', { ascending: false });
+    if (!user?.id || !user?.companyId || !supabase) { setProjetos([]); return; }
+    const { data, error } = await supabase
+      .from('spartan_projects')
+      .select('*')
+      .eq('company_id', user.companyId)
+      .eq('created_by', user.id)
+      .order('created_at', { ascending: false });
     if (error) throw error;
-    setProjetos((data as ProjectRow[]).map(fromRow));
-  }, [user?.companyId]);
+    setProjetos(((data || []) as ProjectRow[]).map(fromRow));
+  }, [user?.id, user?.companyId]);
 
   useEffect(() => {
+    setProjetos([]);
     void refreshProjetos().catch(error => toast.error(`Falha ao carregar projetos: ${error.message}`));
-    if (!user?.companyId || !supabase) return;
-    const channel = supabase.channel(`spartan-projects-${user.companyId}`)
+    if (!user?.id || !user?.companyId || !supabase) return;
+    const channel = supabase.channel(`spartan-projects-${user.id}-${user.companyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'spartan_projects', filter: `company_id=eq.${user.companyId}` }, () => {
         void refreshProjetos().catch(error => toast.error(`Falha ao sincronizar projetos: ${error.message}`));
       }).subscribe();
     const onFocus = () => { void refreshProjetos().catch(() => undefined); };
     window.addEventListener('focus', onFocus);
     return () => { window.removeEventListener('focus', onFocus); void supabase!.removeChannel(channel); };
-  }, [refreshProjetos, user?.companyId]);
+  }, [refreshProjetos, user?.id, user?.companyId]);
 
   const addProjeto = (proj: Omit<ProjetoImpressao3D, 'id' | 'dataCriacao' | 'estoqueBaixado'>): boolean => {
     const gate = FeatureGatingService.canAddProject(projetos.length, currentPlan);
@@ -202,7 +208,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
     if (!Object.keys(update).length) return true;
     try {
       const { data, error } = await supabase.from('spartan_projects').update(update)
-        .eq('id', id).eq('company_id', user.companyId).select('*').maybeSingle();
+        .eq('id', id).eq('company_id', user.companyId).eq('created_by', user.id).select('*').maybeSingle();
       if (error) throw error;
       if (!data) throw new Error('Sem permissão para editar este projeto.');
       const updated = fromRow(data as ProjectRow);
@@ -224,7 +230,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
         if (cancelError) throw cancelError;
       }
       const { data, error } = await supabase.from('spartan_projects').delete()
-        .eq('id', id).eq('company_id', user.companyId).select('id').maybeSingle();
+        .eq('id', id).eq('company_id', user.companyId).eq('created_by', user.id).select('id').maybeSingle();
       if (error) throw error;
       if (!data) throw new Error('Sem permissão para excluir este projeto.');
       setProjetos(prev => prev.filter(item => item.id !== id));

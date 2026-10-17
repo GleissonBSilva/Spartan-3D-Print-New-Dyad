@@ -1,7 +1,32 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { AuthError, User as SupabaseUser } from '@supabase/supabase-js';
 import type { PlatformRole, User, UserRole } from '@/types/saas';
 import { isSupabaseConfigured, requireSupabase, supabase } from '@/lib/supabase';
+import { queryClient } from '@/lib/queryClient';
+import { PaymentMethodsService } from '@/services/paymentMethodsService';
+import { AiDiagnosticService } from '@/services/aiDiagnosticService';
+
+const LEGACY_SHARED_STORAGE_KEYS = [
+  'spartan_payment_methods_config',
+  'spartan_farm_wallpaper',
+  'spartan_farm_opacity',
+  'spartan_farm_blur',
+  'ph3d_deleted_printers',
+  'ph3d_printer_investments_v2',
+  'spartan_custom_ai_key',
+  'spartan_custom_ai_provider',
+  'spartan_pix_config',
+];
+
+function purgeLegacySharedStorage() {
+  try {
+    for (const key of LEGACY_SHARED_STORAGE_KEYS) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -45,8 +70,18 @@ function throwAuthError(error: AuthError | null) {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const activeUserIdRef = useRef<string | null>(null);
 
   const loadUser = useCallback(async (authUser: SupabaseUser | null) => {
+    purgeLegacySharedStorage();
+    const nextUserId = authUser?.id ?? null;
+    if (activeUserIdRef.current !== nextUserId) {
+      activeUserIdRef.current = nextUserId;
+      PaymentMethodsService.setCurrentUser(nextUserId);
+      AiDiagnosticService.setCurrentUser(nextUserId);
+      queryClient.clear();
+    }
+
     if (!authUser) {
       setUser(null);
       return;
@@ -61,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
     if (accessError) console.warn('Platform access roles could not be loaded; check that Supabase migrations are current.', accessError.message);
     const platformRoles = (platformAccess || []).map(row => row.access_role).filter((role): role is PlatformRole => role === 'admin' || role === 'developer');
+    void PaymentMethodsService.syncFromSupabase(authUser.id);
     setUser(mapUser(authUser, data, platformRoles));
   }, []);
 
@@ -140,6 +176,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    activeUserIdRef.current = null;
+    PaymentMethodsService.setCurrentUser(null);
+    AiDiagnosticService.setCurrentUser(null);
+    purgeLegacySharedStorage();
+    setUser(null);
+    queryClient.clear();
     const { error } = await requireSupabase().auth.signOut();
     throwAuthError(error);
   };

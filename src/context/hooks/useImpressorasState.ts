@@ -21,32 +21,39 @@ export function useImpressorasState(currentPlan: Plan) {
   const [historicoImpressoras, setHistoricoImpressoras] = useState<EventoImpressora[]>([]);
 
   const refreshImpressoras = useCallback(async () => {
-    if (!user?.companyId || !supabase) { setImpressoras([]); setHistoricoImpressoras([]); return; }
+    if (!user?.id || !user?.companyId || !supabase) { setImpressoras([]); setHistoricoImpressoras([]); return; }
     const [printerResult, eventResult] = await Promise.all([
       supabase.from('spartan_printers').select('*').eq('company_id', user.companyId).order('created_at', { ascending: false }),
       supabase.from('spartan_printer_events').select('id, printer_id, event_type, payload, created_at').eq('company_id', user.companyId).order('created_at', { ascending: false }).limit(100),
     ]);
     if (printerResult.error) throw printerResult.error;
     if (eventResult.error) throw eventResult.error;
-    setImpressoras((printerResult.data as PrinterRow[]).map(fromRow));
-    setHistoricoImpressoras((eventResult.data as PrinterEventRow[]).map(row => ({ id: row.id, impressoraId: row.printer_id, tipo: row.event_type, payload: row.payload || {}, data: row.created_at })));
-  }, [user?.companyId]);
+    const filterByOwner = <T extends Record<string, unknown>>(rows: T[]) =>
+      rows.filter(r => !('user_id' in r) || !r.user_id || r.user_id === user.id);
+    setImpressoras(filterByOwner((printerResult.data || []) as unknown as Record<string, unknown>[]).map(r => fromRow(r as unknown as PrinterRow)));
+    setHistoricoImpressoras(filterByOwner((eventResult.data || []) as unknown as Record<string, unknown>[]).map(r => {
+      const row = r as unknown as PrinterEventRow;
+      return { id: row.id, impressoraId: row.printer_id, tipo: row.event_type, payload: row.payload || {}, data: row.created_at };
+    }));
+  }, [user?.id, user?.companyId]);
 
   useEffect(() => {
+    setImpressoras([]);
+    setHistoricoImpressoras([]);
     void refreshImpressoras().catch(error => toast.error(`Falha ao carregar impressoras: ${error.message}`));
-    if (!user?.companyId || !supabase) return;
-    const channel = supabase.channel(`spartan-printers-${user.companyId}`)
+    if (!user?.id || !user?.companyId || !supabase) return;
+    const channel = supabase.channel(`spartan-printers-${user.id}-${user.companyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'spartan_printers', filter: `company_id=eq.${user.companyId}` }, () => {
         void refreshImpressoras().catch(error => toast.error(`Falha ao sincronizar impressoras: ${error.message}`));
       }).subscribe();
-    const eventsChannel = supabase.channel(`spartan-printer-events-${user.companyId}`)
+    const eventsChannel = supabase.channel(`spartan-printer-events-${user.id}-${user.companyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'spartan_printer_events', filter: `company_id=eq.${user.companyId}` }, () => {
         void refreshImpressoras().catch(error => toast.error(`Falha ao sincronizar histórico da impressora: ${error.message}`));
       }).subscribe();
     const onFocus = () => { void refreshImpressoras().catch(() => undefined); };
     window.addEventListener('focus', onFocus);
     return () => { window.removeEventListener('focus', onFocus); void supabase!.removeChannel(channel); void supabase!.removeChannel(eventsChannel); };
-  }, [refreshImpressoras, user?.companyId]);
+  }, [refreshImpressoras, user?.id, user?.companyId]);
 
   const addImpressora = (imp: Omit<Impressora3D, 'id'>): boolean => {
     const gate = FeatureGatingService.canAddPrinter(impressoras.length, currentPlan);

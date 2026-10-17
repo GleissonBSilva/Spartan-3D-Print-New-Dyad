@@ -19,30 +19,32 @@ export interface PixChargeParams {
   descricao?: string;
 }
 
-const DEFAULT_CONFIG_KEY = 'spartan_pix_config';
+const DEFAULT_CONFIG_KEY_PREFIX = 'spartan_pix_config_';
 
 export const DEFAULT_PIX_CONFIG: PixConfig = {
-  chave: 'financeiro@spartan3d.com.br',
+  chave: '',
   tipoChave: 'email',
-  nomeTitular: 'SPARTAN 3D PRINT',
+  nomeTitular: '',
   cidade: 'SAO PAULO',
 };
 
-export function getSavedPixConfig(): PixConfig {
+export function getSavedPixConfig(userId?: string | null): PixConfig {
   try {
-    const saved = localStorage.getItem(DEFAULT_CONFIG_KEY);
+    if (!userId) return { ...DEFAULT_PIX_CONFIG };
+    const saved = localStorage.getItem(`${DEFAULT_CONFIG_KEY_PREFIX}${userId}`);
     if (saved) {
       return { ...DEFAULT_PIX_CONFIG, ...JSON.parse(saved) };
     }
   } catch (error) {
     console.warn('Não foi possível recuperar configuração Pix salva:', error);
   }
-  return DEFAULT_PIX_CONFIG;
+  return { ...DEFAULT_PIX_CONFIG };
 }
 
-export function savePixConfig(config: PixConfig): void {
+export function savePixConfig(config: PixConfig, userId?: string | null): void {
   try {
-    localStorage.setItem(DEFAULT_CONFIG_KEY, JSON.stringify(config));
+    if (!userId) return;
+    localStorage.setItem(`${DEFAULT_CONFIG_KEY_PREFIX}${userId}`, JSON.stringify(config));
   } catch (error) {
     console.warn('Não foi possível salvar configuração Pix:', error);
   }

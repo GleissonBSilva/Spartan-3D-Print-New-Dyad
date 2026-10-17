@@ -43,24 +43,32 @@ const formatSecondsToTime = (totalSeconds: number) => {
 
 const formatHours = (inputTime: number | string) => formatSecondsToTime(parseAndSanitizeEstimatedSeconds(inputTime));
 
+import { useAuth } from '@/context/AuthContext';
+
 export const ParqueImpressoras: React.FC = () => {
+  const { user } = useAuth();
   const { impressoras: rawImpressoras, projetos, historicoImpressoras, addImpressora, updateImpressora, deleteImpressora, updateImpressoraStatus, updatePrinterProgress, recordMaintenance, updateProjetoStatus, refreshFarmData } = useSaaSData();
   
-  // Estado local para exclusão manual garantida e metadados customizados
+  // Estado local para exclusão manual garantida e metadados customizados (estritamente isolados por user.id)
   const [deletedPrinterIds, setDeletedPrinterIds] = useState<string[]>([]);
   const [customInvestments, setCustomInvestments] = useState<Record<string, { custoInvestimento: number; vidaUtilHoras: number; depreciacaoHora: number }>>({});
 
   useEffect(() => {
+    if (!user?.id) {
+      setDeletedPrinterIds([]);
+      setCustomInvestments({});
+      return;
+    }
     try {
-      const savedDel = localStorage.getItem('ph3d_deleted_printers');
-      if (savedDel) setDeletedPrinterIds(JSON.parse(savedDel));
+      const savedDel = localStorage.getItem(`ph3d_deleted_printers_${user.id}`);
+      setDeletedPrinterIds(savedDel ? JSON.parse(savedDel) : []);
 
-      const savedInv = localStorage.getItem('ph3d_printer_investments_v2');
-      if (savedInv) setCustomInvestments(JSON.parse(savedInv));
+      const savedInv = localStorage.getItem(`ph3d_printer_investments_v2_${user.id}`);
+      setCustomInvestments(savedInv ? JSON.parse(savedInv) : {});
     } catch (e) {
       console.error('Erro ao carregar dados do parque de impressoras do localStorage:', e);
     }
-  }, []);
+  }, [user?.id]);
 
   // Filtra as impressoras removendo as que foram marcadas como deletadas localmente
   const impressoras = useMemo(() => {
@@ -277,10 +285,12 @@ export const ParqueImpressoras: React.FC = () => {
     };
 
     setCustomInvestments(updatedCustoms);
-    try {
-      localStorage.setItem('ph3d_printer_investments_v2', JSON.stringify(updatedCustoms));
-    } catch (e) {
-      console.error('Erro ao salvar investimentos customizados no localStorage:', e);
+    if (user?.id) {
+      try {
+        localStorage.setItem(`ph3d_printer_investments_v2_${user.id}`, JSON.stringify(updatedCustoms));
+      } catch (e) {
+        console.error('Erro ao salvar investimentos customizados no localStorage:', e);
+      }
     }
 
     void updateImpressora(editingPrinterId, {
@@ -307,11 +317,13 @@ export const ParqueImpressoras: React.FC = () => {
       delete updatedCustoms[id];
       setCustomInvestments(updatedCustoms);
 
-      try {
-        localStorage.setItem('ph3d_deleted_printers', JSON.stringify(newDeleted));
-        localStorage.setItem('ph3d_printer_investments_v2', JSON.stringify(updatedCustoms));
-      } catch (e) {
-        console.error('Erro ao salvar impressoras excluídas no localStorage:', e);
+      if (user?.id) {
+        try {
+          localStorage.setItem(`ph3d_deleted_printers_${user.id}`, JSON.stringify(newDeleted));
+          localStorage.setItem(`ph3d_printer_investments_v2_${user.id}`, JSON.stringify(updatedCustoms));
+        } catch (e) {
+          console.error('Erro ao salvar impressoras excluídas no localStorage:', e);
+        }
       }
 
       toast.success('Impressora excluída com sucesso.');

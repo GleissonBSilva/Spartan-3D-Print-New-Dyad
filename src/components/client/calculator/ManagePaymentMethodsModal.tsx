@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import {
   FarmPaymentSettings,
   DEFAULT_PAYMENT_SETTINGS,
 } from '@/services/paymentMethodsService';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 
 interface ManagePaymentMethodsModalProps {
@@ -34,15 +35,22 @@ export const ManagePaymentMethodsModal: React.FC<ManagePaymentMethodsModalProps>
   onClose,
   onSettingsSaved,
 }) => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<FarmPaymentSettings>(() =>
-    PaymentMethodsService.getSettings()
+    PaymentMethodsService.getSettings(user?.id)
   );
   const [activeTab, setActiveTab] = useState<'pix' | 'credito' | 'debito' | 'dinheiro' | 'sinal'>('pix');
+
+  useEffect(() => {
+    if (isOpen) {
+      setSettings(PaymentMethodsService.getSettings(user?.id));
+    }
+  }, [isOpen, user?.id]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    const ok = PaymentMethodsService.saveSettings(settings);
+    const ok = PaymentMethodsService.saveSettings(settings, user?.id);
     if (ok) {
       toast.success('Regras e formas de pagamento salvas com sucesso!');
       if (onSettingsSaved) onSettingsSaved(settings);
@@ -54,7 +62,7 @@ export const ManagePaymentMethodsModal: React.FC<ManagePaymentMethodsModalProps>
 
   const handleReset = () => {
     setSettings(DEFAULT_PAYMENT_SETTINGS);
-    PaymentMethodsService.saveSettings(DEFAULT_PAYMENT_SETTINGS);
+    PaymentMethodsService.saveSettings(DEFAULT_PAYMENT_SETTINGS, user?.id);
     if (onSettingsSaved) onSettingsSaved(DEFAULT_PAYMENT_SETTINGS);
     toast.info('Configurações de pagamento restauradas para o padrão.');
   };

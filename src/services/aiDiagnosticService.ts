@@ -11,29 +11,47 @@ export interface AiDiagnosticResult {
   source: 'supabase_edge' | 'direct_llm' | 'spartan_expert_engine';
 }
 
-const CUSTOM_AI_KEY_STORAGE = 'spartan_custom_ai_key';
-const CUSTOM_AI_PROVIDER_STORAGE = 'spartan_custom_ai_provider';
+const CUSTOM_AI_KEY_STORAGE_PREFIX = 'spartan_custom_ai_key_';
+const CUSTOM_AI_PROVIDER_STORAGE_PREFIX = 'spartan_custom_ai_provider_';
 
 export class AiDiagnosticService {
+  private static currentUserId: string | null = null;
+
+  public static setCurrentUser(userId: string | null): void {
+    this.currentUserId = userId;
+    try {
+      localStorage.removeItem('spartan_custom_ai_key');
+      localStorage.removeItem('spartan_custom_ai_provider');
+    } catch {
+      // Ignore storage access errors
+    }
+  }
+
   /**
    * Obtém chave personalizada configurada pelo usuário (Groq, OpenAI, etc.)
    */
-  public static getCustomApiKey(): string {
-    return localStorage.getItem(CUSTOM_AI_KEY_STORAGE)?.trim() || '';
+  public static getCustomApiKey(userId?: string | null): string {
+    const uid = userId ?? this.currentUserId;
+    if (!uid) return '';
+    return localStorage.getItem(`${CUSTOM_AI_KEY_STORAGE_PREFIX}${uid}`)?.trim() || '';
   }
 
-  public static getCustomProvider(): 'groq' | 'openai' {
-    const p = localStorage.getItem(CUSTOM_AI_PROVIDER_STORAGE);
+  public static getCustomProvider(userId?: string | null): 'groq' | 'openai' {
+    const uid = userId ?? this.currentUserId;
+    if (!uid) return 'groq';
+    const p = localStorage.getItem(`${CUSTOM_AI_PROVIDER_STORAGE_PREFIX}${uid}`);
     return p === 'openai' ? 'openai' : 'groq';
   }
 
-  public static saveCustomAiConfig(key: string, provider: 'groq' | 'openai'): void {
+  public static saveCustomAiConfig(key: string, provider: 'groq' | 'openai', userId?: string | null): void {
+    const uid = userId ?? this.currentUserId;
+    if (!uid) return;
     if (key.trim()) {
-      localStorage.setItem(CUSTOM_AI_KEY_STORAGE, key.trim());
-      localStorage.setItem(CUSTOM_AI_PROVIDER_STORAGE, provider);
+      localStorage.setItem(`${CUSTOM_AI_KEY_STORAGE_PREFIX}${uid}`, key.trim());
+      localStorage.setItem(`${CUSTOM_AI_PROVIDER_STORAGE_PREFIX}${uid}`, provider);
     } else {
-      localStorage.removeItem(CUSTOM_AI_KEY_STORAGE);
-      localStorage.removeItem(CUSTOM_AI_PROVIDER_STORAGE);
+      localStorage.removeItem(`${CUSTOM_AI_KEY_STORAGE_PREFIX}${uid}`);
+      localStorage.removeItem(`${CUSTOM_AI_PROVIDER_STORAGE_PREFIX}${uid}`);
     }
   }
 

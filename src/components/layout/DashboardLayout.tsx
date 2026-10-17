@@ -48,21 +48,27 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Estados do Papel de Parede Global
+  // Estados do Papel de Parede isolado por usuário/farm
   const [bgImage, setBgImage] = useState<string>('');
   const [bgOpacity, setBgOpacity] = useState<number>(0.15);
   const [bgBlur, setBgBlur] = useState<number>(4);
 
   useEffect(() => {
     const loadWallpaper = () => {
+      if (!user?.id) {
+        setBgImage('');
+        setBgOpacity(0.15);
+        setBgBlur(4);
+        return;
+      }
       try {
-        const bg = localStorage.getItem('spartan_farm_wallpaper');
-        const op = localStorage.getItem('spartan_farm_opacity');
-        const bl = localStorage.getItem('spartan_farm_blur');
+        const bg = localStorage.getItem(`spartan_farm_wallpaper_${user.id}`);
+        const op = localStorage.getItem(`spartan_farm_opacity_${user.id}`);
+        const bl = localStorage.getItem(`spartan_farm_blur_${user.id}`);
 
-        if (bg) setBgImage(bg); else setBgImage('');
-        if (op) setBgOpacity(Number(op));
-        if (bl) setBgBlur(Number(bl));
+        setBgImage(bg || '');
+        setBgOpacity(op ? Number(op) : 0.15);
+        setBgBlur(bl ? Number(bl) : 4);
       } catch (e) {
         console.error('Erro ao ler papel de parede no DashboardLayout:', e);
       }
@@ -71,7 +77,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     loadWallpaper();
     window.addEventListener('spartan_wallpaper_updated', loadWallpaper);
     return () => window.removeEventListener('spartan_wallpaper_updated', loadWallpaper);
-  }, []);
+  }, [user?.id]);
 
   const hasAdminAccess = canAccessAdmin(user);
   const isAdmin = location.pathname.startsWith('/admin');

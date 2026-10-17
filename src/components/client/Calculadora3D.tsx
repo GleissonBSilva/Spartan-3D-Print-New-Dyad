@@ -60,18 +60,24 @@ export const Calculadora3D: React.FC = () => {
     sourceProject?.parcelasCartao || 1
   );
   const [paymentSettings, setPaymentSettings] = useState<FarmPaymentSettings>(() =>
-    PaymentMethodsService.getSettings()
+    PaymentMethodsService.getSettings(user?.id)
   );
 
   const refreshPaymentSettings = () => {
-    setPaymentSettings(PaymentMethodsService.getSettings());
+    setPaymentSettings(PaymentMethodsService.getSettings(user?.id));
   };
 
   useEffect(() => {
+    refreshPaymentSettings();
+    if (user?.id) {
+      void PaymentMethodsService.syncFromSupabase(user.id).then(synced => {
+        setPaymentSettings(synced);
+      });
+    }
     const handleSettingsUpdated = () => refreshPaymentSettings();
     window.addEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
     return () => window.removeEventListener('spartan_payment_settings_updated', handleSettingsUpdated);
-  }, []);
+  }, [user?.id]);
 
   // Parâmetros Financeiros e Operacionais (Mantidos os padrões operacionais da farm)
   const [tarifaKwh, setTarifaKwh] = useState(0.85);
@@ -652,7 +658,7 @@ export const Calculadora3D: React.FC = () => {
               onSelectInstallments={setSelectedInstallments}
               onUpdateSettings={(newSettings) => {
                 setPaymentSettings(newSettings);
-                PaymentMethodsService.savePaymentSettings(newSettings);
+                PaymentMethodsService.savePaymentSettings(newSettings, user?.id);
               }}
             />
 

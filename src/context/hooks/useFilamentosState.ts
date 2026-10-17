@@ -31,21 +31,25 @@ export function useFilamentosState(currentPlan: Plan) {
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoEstoque[]>([]);
 
   const refreshFilamentos = useCallback(async () => {
-    if (!user?.companyId || !supabase) { setFilamentos([]); setMovimentacoes([]); return; }
+    if (!user?.id || !user?.companyId || !supabase) { setFilamentos([]); setMovimentacoes([]); return; }
     const [stockResult, eventsResult] = await Promise.all([
       supabase.from('spartan_filaments').select('*').eq('company_id', user.companyId).order('created_at', { ascending: false }),
       supabase.from('spartan_inventory_events').select('id, filament_id, project_id, event_type, quantity_g, note, created_at').eq('company_id', user.companyId).order('created_at', { ascending: false }).limit(12),
     ]);
     if (stockResult.error) throw stockResult.error;
     if (eventsResult.error) throw eventsResult.error;
-    setFilamentos((stockResult.data as FilamentRow[]).map(fromRow));
-    setMovimentacoes((eventsResult.data as InventoryEventRow[]).map(fromEventRow));
-  }, [user?.companyId]);
+    const filterByOwner = <T extends Record<string, unknown>>(rows: T[]) =>
+      rows.filter(r => !('user_id' in r) || !r.user_id || r.user_id === user.id);
+    setFilamentos(filterByOwner((stockResult.data || []) as unknown as Record<string, unknown>[]).map(r => fromRow(r as unknown as FilamentRow)));
+    setMovimentacoes(filterByOwner((eventsResult.data || []) as unknown as Record<string, unknown>[]).map(r => fromEventRow(r as unknown as InventoryEventRow)));
+  }, [user?.id, user?.companyId]);
 
   useEffect(() => {
+    setFilamentos([]);
+    setMovimentacoes([]);
     void refreshFilamentos().catch(error => toast.error(`Falha ao carregar estoque: ${error.message}`));
-    if (!user?.companyId || !supabase) return;
-    const channel = supabase.channel(`spartan-filaments-${user.companyId}`)
+    if (!user?.id || !user?.companyId || !supabase) return;
+    const channel = supabase.channel(`spartan-filaments-${user.id}-${user.companyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'spartan_filaments', filter: `company_id=eq.${user.companyId}` }, () => {
         void refreshFilamentos().catch(error => toast.error(`Falha ao sincronizar estoque: ${error.message}`));
       })
@@ -55,7 +59,7 @@ export function useFilamentosState(currentPlan: Plan) {
     const onFocus = () => { void refreshFilamentos().catch(() => undefined); };
     window.addEventListener('focus', onFocus);
     return () => { window.removeEventListener('focus', onFocus); void supabase!.removeChannel(channel); };
-  }, [refreshFilamentos, user?.companyId]);
+  }, [refreshFilamentos, user?.id, user?.companyId]);
 
   const addFilamento = async (fil: Omit<FilamentoEstoque, 'id'>): Promise<boolean> => {
     const gate = FeatureGatingService.canAddFilament(filamentos.length, currentPlan);

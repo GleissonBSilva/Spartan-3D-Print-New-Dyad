@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,13 +22,24 @@ interface ClientTeamManagerProps {
 }
 
 export const ClientTeamManager: React.FC<ClientTeamManagerProps> = ({ user, currentPlan }) => {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    { id: '1', name: user?.name || 'Carlos Mendes', email: user?.email || 'carlos@agencia.com', role: 'Proprietário' },
-    { id: '2', name: 'Juliana Silva', email: 'juliana@agencia.com', role: 'Gerente de Tráfego' },
-    { id: '3', name: 'Rafael Torres', email: 'rafael@agencia.com', role: 'Copywriter' },
-  ]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberName, setNewMemberName] = useState('');
+
+  useEffect(() => {
+    if (!user) {
+      setTeamMembers([]);
+      return;
+    }
+    setTeamMembers([
+      {
+        id: user.id,
+        name: user.name || user.companyName || 'Proprietário',
+        email: user.email,
+        role: 'Proprietário',
+      },
+    ]);
+  }, [user?.id, user?.name, user?.companyName, user?.email]);
 
   const handleAddTeamMember = (e: React.FormEvent) => {
     e.preventDefault();

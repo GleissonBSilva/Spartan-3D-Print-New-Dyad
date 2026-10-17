@@ -1,26 +1,34 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Bot, Thermometer, Copy, Check, RotateCcw, Loader2, Settings2, Key, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 import { AiDiagnosticService } from '@/services/aiDiagnosticService';
+import { useAuth } from '@/context/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export const SpartanAiAssistant: React.FC = () => {
+  const { user } = useAuth();
   const [pergunta, setPergunta] = useState('');
   const [resposta, setResposta] = useState<string | null>(null);
   const [modeloUsado, setModeloUsado] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [configModal, setConfigModal] = useState(false);
-  const [customKey, setCustomKey] = useState(AiDiagnosticService.getCustomApiKey());
-  const [customProvider, setCustomProvider] = useState<'groq' | 'openai'>(AiDiagnosticService.getCustomProvider());
+  const [customKey, setCustomKey] = useState(() => AiDiagnosticService.getCustomApiKey(user?.id));
+  const [customProvider, setCustomProvider] = useState<'groq' | 'openai'>(() => AiDiagnosticService.getCustomProvider(user?.id));
+
+  useEffect(() => {
+    setCustomKey(AiDiagnosticService.getCustomApiKey(user?.id));
+    setCustomProvider(AiDiagnosticService.getCustomProvider(user?.id));
+    setResposta(null);
+    setModeloUsado(null);
+  }, [user?.id]);
 
   const [categoriaAtiva, setCategoriaAtiva] = useState<'iniciante' | 'avancado'>('iniciante');
 
@@ -44,7 +52,7 @@ export const SpartanAiAssistant: React.FC = () => {
 
   const handleSalvarChave = (e: React.FormEvent) => {
     e.preventDefault();
-    AiDiagnosticService.saveCustomAiConfig(customKey, customProvider);
+    AiDiagnosticService.saveCustomAiConfig(customKey, customProvider, user?.id);
     setConfigModal(false);
     toast.success(customKey.trim() ? 'Chave de IA configurada com sucesso!' : 'Configuração de IA restaurada para o motor nativo.');
   };
