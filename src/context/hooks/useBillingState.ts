@@ -193,11 +193,34 @@ export function useBillingState() {
     }
   };
 
+  const deleteClient = async (id: string): Promise<boolean> => {
+    if (!supabase || !canAccessAdmin(user)) {
+      toast.error('Apenas administradores podem excluir usuários.');
+      return false;
+    }
+    try {
+      const { error } = await supabase.rpc('spartan_admin_delete_user', {
+        p_target_user_id: id,
+      });
+      if (error) throw error;
+      setClients(prev => prev.filter(client => client.id !== id));
+      setInvoices(prev => prev.filter(inv => inv.clientId !== id));
+      toast.success('Usuário e todos os seus dados foram excluídos permanentemente do Supabase. O e-mail está livre para novo cadastro.');
+      return true;
+    } catch (error) {
+      toast.error(
+        `Falha ao excluir usuário: ${error instanceof Error ? error.message : 'erro inesperado'}`
+      );
+      return false;
+    }
+  };
+
   return {
     clients,
     invoices,
     addClient,
     updateClientStatus,
+    deleteClient,
     createInvoice,
     createDirectInvoice,
     confirmInvoicePayment,
