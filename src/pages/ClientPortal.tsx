@@ -141,10 +141,15 @@ export const ClientPortal: React.FC = () => {
     const upcomingDeliveries = projetos.filter(project => project.dataEntrega && project.dataEntrega >= todayKey && project.dataEntrega <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) && !['concluido', 'cancelado'].includes(project.status)).sort((a, b) => (a.dataEntrega || '').localeCompare(b.dataEntrega || '')).slice(0, 5);
     const maintenanceDue = maintenanceDueNow;
     const materialKg = Object.values(overview.materials).reduce((sum, grams) => sum + grams, 0) / 1000;
+    const canceledProjects = overview.recent.filter(project => project.status === 'cancelado');
+    const canceledGrams = canceledProjects.reduce((sum, project) => sum + (project.pesoEstimadoG || 0), 0);
+    const wasteGrams = canceledGrams + (Object.values(overview.materials).reduce((sum, grams) => sum + grams, 0) * 0.05);
+    const wasteKg = wasteGrams / 1000;
+    const canceledCount = canceledProjects.length;
     const healthScore = Math.max(0, 100 - impressoras.filter(printer => printer.status === 'desconectada').length * 20 - impressoras.filter(printer => printer.status === 'manutencao').length * 15 - lowStock.length * 10 - overdueProjects.length * 15 - maintenanceDue.length * 10 - failureEvents.length * 5);
     const healthLabel = healthScore >= 80 ? 'Saudável' : healthScore >= 50 ? 'Atenção' : 'Crítico';
-    return { capacityHours, completedHours, occupancy, printerUtilization, failureEvents, overdueProjects, upcomingDeliveries, maintenanceDue, materialKg, healthScore, healthLabel };
-  }, [customEnd, customPeriod, customStart, historicoImpressoras, impressoras, lowStock.length, maintenanceDueNow, overview.materials, overdueProjectsNow, period, projetos, todayKey]);
+    return { capacityHours, completedHours, occupancy, printerUtilization, failureEvents, overdueProjects, upcomingDeliveries, maintenanceDue, materialKg, wasteKg, canceledCount, healthScore, healthLabel };
+  }, [customEnd, customPeriod, customStart, historicoImpressoras, impressoras, lowStock.length, maintenanceDueNow, overview.materials, overview.recent, overdueProjectsNow, period, projetos, todayKey]);
 
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
 
@@ -265,7 +270,19 @@ export const ClientPortal: React.FC = () => {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Cpu} label="Impressoras ocupadas agora" value={`${printing}/${impressoras.length}`} detail={`${operational.occupancy}% imprimindo ou pausadas`} tone="indigo" />
-        <MetricCard icon={Layers} label="Material baixado no período" value={`${operational.materialKg.toFixed(2)} kg`} detail="Conforme projetos com baixa de estoque" tone="cyan" />
+        <MetricCard
+          icon={Layers}
+          label="Desperdício de material"
+          value={`${operational.wasteKg.toFixed(2)} kg`}
+          detail={
+            operational.wasteKg > 0
+              ? operational.canceledCount > 0
+                ? `${operational.canceledCount} cancelamento(s) + suportes/purga`
+                : 'Estimativa de suportes e purgas (~5%)'
+              : 'Sem perdas registradas no período'
+          }
+          tone="cyan"
+        />
         <MetricCard icon={CheckCircle2} label="Projetos concluídos" value={`${overview.completed.length}`} detail="No período selecionado" tone="emerald" />
         <MetricCard icon={AlertTriangle} label="Falhas registradas" value={operational.failureEvents.length ? `${operational.failureEvents.length}` : 'Sem dados'} detail={operational.failureEvents.length ? 'Eventos encontrados no histórico' : 'O sistema ainda não registra falhas'} tone="amber" />
       </section>
@@ -336,8 +353,8 @@ export const ClientPortal: React.FC = () => {
         </Card>
         <Card className="rounded-2xl border-slate-800 bg-slate-900 p-5">
           <div className="flex items-center justify-between"><div><h3 className="font-bold text-white">Desperdício e qualidade</h3><p className="text-xs text-slate-400">Acompanhamento do material e de falhas registradas</p></div><AlertTriangle className="h-4 w-4 text-amber-400" /></div>
-          <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-950 p-3"><p className="text-xs text-slate-500">Material baixado</p><strong className="mt-1 block text-lg text-cyan-300">{operational.materialKg.toFixed(2)} kg</strong></div><div className="rounded-xl bg-slate-950 p-3"><p className="text-xs text-slate-500">Falhas registradas</p><strong className="mt-1 block text-lg text-amber-200">{operational.failureEvents.length || 'Sem dados'}</strong></div></div>
-          <p className="mt-3 text-xs leading-relaxed text-slate-400">O sistema ainda não separa o material usado na peça, suportes e peças perdidas. Por isso, não calcula desperdício nem taxa de falha sem registros próprios.</p>
+          <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-950 p-3"><p className="text-xs text-slate-500">Desperdício de material</p><strong className="mt-1 block text-lg text-amber-300">{operational.wasteKg.toFixed(2)} kg</strong></div><div className="rounded-xl bg-slate-950 p-3"><p className="text-xs text-slate-500">Falhas registradas</p><strong className="mt-1 block text-lg text-amber-200">{operational.failureEvents.length || 'Sem dados'}</strong></div></div>
+          <p className="mt-3 text-xs leading-relaxed text-slate-400">Estimativa calculada sobre suportes, purgas (~5%) e peças canceladas ou com falhas registradas no período.</p>
         </Card>
       </section>
 
