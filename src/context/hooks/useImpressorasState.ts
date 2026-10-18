@@ -20,17 +20,18 @@ type PrinterRow = {
   current_project_name: string | null;
   progress_percent: number;
   investment_cost?: number | null;
+  purchase_price?: number | null;
   lifespan_hours?: number | null;
   depreciation_per_hour?: number | null;
+  hourly_depreciation?: number | null;
 };
 type PrinterEventRow = { id: string; printer_id: string; event_type: string; payload: Record<string, unknown>; created_at: string };
 const fromRow = (row: PrinterRow): Impressora3D => {
-  const custoInvestimento = row.investment_cost !== undefined && row.investment_cost !== null ? Number(row.investment_cost) : 5000;
+  const rawInv = Number(row.investment_cost || row.purchase_price || 0);
+  const custoInvestimento = rawInv > 0 ? rawInv : 5000;
   const vidaUtilHoras = row.lifespan_hours !== undefined && row.lifespan_hours !== null && Number(row.lifespan_hours) > 0 ? Number(row.lifespan_hours) : 5000;
-  const depreciacaoHora =
-    row.depreciation_per_hour !== undefined && row.depreciation_per_hour !== null && Number(row.depreciation_per_hour) > 0
-      ? Number(row.depreciation_per_hour)
-      : Number((custoInvestimento / vidaUtilHoras).toFixed(2));
+  const rawDep = Number(row.depreciation_per_hour || row.hourly_depreciation || 0);
+  const depreciacaoHora = rawDep > 0 ? rawDep : Number((custoInvestimento / vidaUtilHoras).toFixed(2));
 
   return {
     id: row.id,

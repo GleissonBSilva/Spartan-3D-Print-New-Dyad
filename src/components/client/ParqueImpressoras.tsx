@@ -77,20 +77,30 @@ export const ParqueImpressoras: React.FC = () => {
       .filter(p => !deletedPrinterIds.includes(p.id))
       .map(p => {
         const custom = customInvestments[p.id];
-        const activeProjForPrinter = projetos.find(
-          proj =>
-            proj.status === 'em_impressao' &&
-            (proj.id === p.projetoAtualId || proj.impressoraId === p.id)
-        );
+        const activeProjForPrinter =
+          projetos.find(
+            proj =>
+              proj.status === 'em_impressao' &&
+              (proj.id === p.projetoAtualId || proj.impressoraId === p.id)
+          ) ||
+          (p.status === 'imprimindo' || p.status === 'pausada'
+            ? projetos.find(proj => proj.status === 'em_impressao') ||
+              projetos.find(proj => proj.impressoraId === p.id && proj.status !== 'concluido' && proj.status !== 'cancelado')
+            : undefined);
 
         const effectiveStatus: Impressora3D['status'] =
           activeProjForPrinter && p.status === 'disponivel' ? 'imprimindo' : p.status;
 
+        const resolvedProjectId =
+          p.projetoAtualId ||
+          activeProjForPrinter?.id ||
+          (effectiveStatus === 'imprimindo' || effectiveStatus === 'pausada' ? `active_${p.id}` : undefined);
+
         const basePrinter: Impressora3D = {
           ...p,
           status: effectiveStatus,
-          projetoAtualId: p.projetoAtualId || activeProjForPrinter?.id,
-          projetoAtual: p.projetoAtual || activeProjForPrinter?.nomePeca,
+          projetoAtualId: resolvedProjectId,
+          projetoAtual: p.projetoAtual || activeProjForPrinter?.nomePeca || (resolvedProjectId ? 'Projeto em produção' : undefined),
         };
 
         if (custom && custom.custoInvestimento > 0) {
@@ -152,8 +162,10 @@ export const ParqueImpressoras: React.FC = () => {
     if (completingPrintersRef.current.has(printer.id)) return;
     completingPrintersRef.current.add(printer.id);
 
-    const projectId = printer.projetoAtualId || projetos.find(proj => proj.impressoraId === printer.id && proj.status === 'em_impressao')?.id;
-    const currentProject = projetos.find(proj => proj.id === projectId);
+    const rawProjectId = printer.projetoAtualId && !printer.projetoAtualId.startsWith('active_')
+      ? printer.projetoAtualId
+      : projetos.find(proj => (proj.impressoraId === printer.id || !proj.impressoraId) && proj.status === 'em_impressao')?.id;
+    const currentProject = projetos.find(proj => proj.id === rawProjectId);
     const projectName = currentProject?.nomePeca || printer.projetoAtual || 'Projeto';
 
     try {
@@ -175,8 +187,8 @@ export const ParqueImpressoras: React.FC = () => {
       }
 
       // 2. Dá baixa no projeto e libera a impressora
-      if (projectId) {
-        await updateProjetoStatus(projectId, 'concluido');
+      if (rawProjectId) {
+        await updateProjetoStatus(rawProjectId, 'concluido');
       } else {
         updateImpressoraStatus(printer.id, 'disponivel');
       }

@@ -77,10 +77,12 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
       .from('spartan_projects')
       .select('*')
       .eq('company_id', user.companyId)
-      .eq('created_by', user.id)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    setProjetos(((data || []) as ProjectRow[]).map(fromRow));
+    const rows = ((data || []) as (ProjectRow & { user_id?: string | null; created_by?: string | null })[]).filter(
+      r => (!r.user_id && !r.created_by) || r.user_id === user.id || r.created_by === user.id
+    );
+    setProjetos(rows.map(fromRow));
   }, [user?.id, user?.companyId]);
 
   useEffect(() => {
