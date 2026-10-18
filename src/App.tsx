@@ -48,6 +48,7 @@ const App = () => (
 
               {/* Client 3D Printing Views */}
               <Route path="/cliente" element={<RequireRole roles={["client", "manager"]}><ClientPortal /></RequireRole>} />
+              <Route path="/cliente/financeiro" element={<RequireRole roles={["client", "manager"]}><ClientPortal /></RequireRole>} />
               <Route path="/cliente/calculadora" element={<RequireRole roles={["client", "manager"]}><ClientPortal /></RequireRole>} />
               <Route path="/cliente/estoque" element={<RequireRole roles={["client", "manager"]}><ClientPortal /></RequireRole>} />
               <Route path="/cliente/impressoras" element={<RequireRole roles={["client", "manager"]}><ClientPortal /></RequireRole>} />

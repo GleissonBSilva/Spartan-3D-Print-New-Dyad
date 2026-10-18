@@ -7,6 +7,7 @@ import { useSaaSData } from '@/context/SaaSDataContext';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { Calculadora3D } from '@/components/client/Calculadora3D';
+import { FinanceiroFarm } from '@/components/client/FinanceiroFarm';
 import { EstoqueFilamentos } from '@/components/client/EstoqueFilamentos';
 import { ParqueImpressoras } from '@/components/client/ParqueImpressoras';
 import { ProjetosManager } from '@/components/client/ProjetosManager';
@@ -57,6 +58,7 @@ export const ClientPortal: React.FC = () => {
   };
 
   const isCalculadora = currentPath === '/cliente/calculadora';
+  const isFinanceiro = currentPath === '/cliente/financeiro';
   const isEstoque = currentPath === '/cliente/estoque';
   const isImpressoras = currentPath === '/cliente/impressoras';
   const isProjetos = currentPath === '/cliente/projetos';
@@ -64,9 +66,10 @@ export const ClientPortal: React.FC = () => {
   const isPlanos = currentPath === '/cliente/planos';
   const isFaturas = currentPath === '/cliente/faturas';
   const isConfig = currentPath === '/cliente/configuracoes';
-  const isOverview = !isCalculadora && !isEstoque && !isImpressoras && !isProjetos && !isAiCopilot && !isPlanos && !isFaturas && !isConfig;
+  const isOverview = !isCalculadora && !isFinanceiro && !isEstoque && !isImpressoras && !isProjetos && !isAiCopilot && !isPlanos && !isFaturas && !isConfig;
 
   const title = isCalculadora ? 'Calculadora de Impressão 3D'
+    : isFinanceiro ? 'Financeiro & Lucro da Farm'
     : isEstoque ? 'Estoque de Filamentos & Resinas'
     : isImpressoras ? 'Parque de Impressoras 3D'
     : isProjetos ? 'Projetos & Orçamentos Salvos'
@@ -368,6 +371,7 @@ export const ClientPortal: React.FC = () => {
       <section className="grid gap-3 sm:grid-cols-3"><QuickLink href="/cliente/estoque" icon={Layers} label="Abrir estoque" detail="Ver materiais e quantidades" /><QuickLink href="/cliente/projetos" icon={FolderKanban} label="Abrir projetos" detail={`${activeProjects} em andamento · ${projetos.length} no total`} /><QuickLink href="/cliente/calculadora" icon={Plus} label="Novo orçamento" detail="Calcular uma nova impressão" /></section>
     </div>}
 
+    {isFinanceiro && <FinanceiroFarm />}
     {isCalculadora && <Calculadora3D />}
     {isEstoque && <EstoqueFilamentos />}
     {isImpressoras && <ParqueImpressoras />}

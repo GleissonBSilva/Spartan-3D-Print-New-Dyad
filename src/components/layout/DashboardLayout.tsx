@@ -22,6 +22,7 @@ import {
   Box,
   Bell,
   ArrowLeftRight,
+  CircleDollarSign,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -93,6 +94,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   const clientNavItems: Array<{ label: string; href: string; icon: LucideIcon; badge?: string; highlight?: boolean }> = [
     { label: 'Meu Painel 3D', href: '/cliente', icon: LayoutDashboard },
+    { label: 'Financeiro & Lucro', href: '/cliente/financeiro', icon: CircleDollarSign },
     { label: 'Calculadora de Custos', href: '/cliente/calculadora', icon: Calculator, badge: 'CALC' },
     { label: 'Estoque de Filamentos', href: '/cliente/estoque', icon: Layers },
     { label: 'Parque de Impressoras', href: '/cliente/impressoras', icon: Cpu },
