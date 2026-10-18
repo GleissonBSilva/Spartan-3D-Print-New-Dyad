@@ -93,7 +93,7 @@ export const ParqueImpressoras: React.FC = () => {
           projetoAtual: p.projetoAtual || activeProjForPrinter?.nomePeca,
         };
 
-        if (custom) {
+        if (custom && custom.custoInvestimento > 0) {
           return {
             ...basePrinter,
             custoInvestimento: custom.custoInvestimento,
@@ -119,6 +119,8 @@ export const ParqueImpressoras: React.FC = () => {
   const [editBico, setEditBico] = useState<number | string>(0.4);
   const [editPrecoCompra, setEditPrecoCompra] = useState<number | string>(5000);
   const [editVidaUtil, setEditVidaUtil] = useState<number | string>(5000);
+  const [editIntervaloManutencao, setEditIntervaloManutencao] = useState<number | string>(100);
+  const [editHorasUso, setEditHorasUso] = useState<number | string>(0);
 
   const [remainingSecondsMap, setRemainingSecondsMap] = useState<Record<string, number>>({});
   const completingPrintersRef = React.useRef<Set<string>>(new Set());
@@ -319,10 +321,12 @@ export const ParqueImpressoras: React.FC = () => {
     setEditModelo(printer.modelo || '');
     setEditPotencia(printer.potenciaWatts || 350);
     setEditBico(printer.bicoMm || 0.4);
+    setEditIntervaloManutencao(printer.intervaloManutencaoHoras || 100);
+    setEditHorasUso(printer.horasUso ?? 0);
     
     const currentCustom = customInvestments[printer.id];
-    setEditPrecoCompra(currentCustom ? currentCustom.custoInvestimento : (printer.custoInvestimento ?? 5000));
-    setEditVidaUtil(currentCustom ? currentCustom.vidaUtilHoras : (printer.vidaUtilHoras ?? 5000));
+    setEditPrecoCompra(currentCustom && currentCustom.custoInvestimento > 0 ? currentCustom.custoInvestimento : (printer.custoInvestimento || 5000));
+    setEditVidaUtil(currentCustom && currentCustom.vidaUtilHoras > 0 ? currentCustom.vidaUtilHoras : (printer.vidaUtilHoras || 5000));
   };
 
   const handleUpdate = (event: React.FormEvent) => {
@@ -334,6 +338,8 @@ export const ParqueImpressoras: React.FC = () => {
     const valorInvestimento = parseFloat(String(editPrecoCompra)) || 0;
     const horasVidaUtil = parseFloat(String(editVidaUtil)) || 5000;
     const depreciacaoCalculada = horasVidaUtil > 0 ? Number((valorInvestimento / horasVidaUtil).toFixed(2)) : 0.50;
+    const novoIntervaloManutencao = Math.max(1, Number(editIntervaloManutencao) || 100);
+    const novasHorasUso = Math.max(0, Number(editHorasUso) || 0);
 
     const printerToUpdate = impressoras.find(p => p.id === editingPrinterId);
     if (!printerToUpdate) return;
@@ -361,9 +367,14 @@ export const ParqueImpressoras: React.FC = () => {
       modelo: editModelo.trim(),
       potenciaWatts: Number(editPotencia) || 350,
       bicoMm: Number(editBico) || 0.4,
+      intervaloManutencaoHoras: novoIntervaloManutencao,
+      horasUso: novasHorasUso,
+      custoInvestimento: valorInvestimento,
+      vidaUtilHoras: horasVidaUtil,
+      depreciacaoHora: depreciacaoCalculada,
     });
 
-    toast.success('Preço e vida útil salvos com sucesso!');
+    toast.success('Dados, investimento e vida útil salvos com sucesso!');
     setEditingPrinterId(null);
   };
 
@@ -439,23 +450,33 @@ export const ParqueImpressoras: React.FC = () => {
     <section className="grid gap-4 xl:grid-cols-2">
       {impressoras.map(printer => {
         const status = STATUS[printer.status];
-        const remainingService = Math.max(0, (printer.intervaloManutencaoHoras || 100) - (printer.horasDesdeManutencao || 0));
-        const serviceDue = remainingService <= 0;
-        const serviceSoon = remainingService > 0 && remainingService <= 10;
         const currentProject = projetos.find(project => project.id === printer.projetoAtualId);
         const progress = progressDraft[printer.id] ?? printer.progressoPercentual ?? 0;
         
         const rawTempoEstimado = currentProject?.tempoEstimadoHoras ?? 18;
         const totalSecondsEstimated = parseAndSanitizeEstimatedSeconds(rawTempoEstimado);
         const remainingPrintSeconds = remainingSecondsMap[printer.id] ?? Math.round(totalSecondsEstimated * (1 - (Math.min(100, Math.max(0, progress)) / 100)));
+        const elapsedPrintSeconds =
+          printer.projetoAtualId && (printer.status === 'imprimindo' || printer.status === 'pausada')
+            ? Math.max(0, totalSecondsEstimated - remainingPrintSeconds)
+            : 0;
+
+        const baseUsageSeconds = parseAndSanitizeEstimatedSeconds(printer.horasUso);
+        const effectiveUsageSeconds = baseUsageSeconds + elapsedPrintSeconds;
+
+        const baseRemainingServiceSecs = Math.max(0, ((printer.intervaloManutencaoHoras || 100) - (printer.horasDesdeManutencao || 0)) * 3600);
+        const effectiveRemainingServiceSecs = Math.max(0, baseRemainingServiceSecs - elapsedPrintSeconds);
+        const remainingServiceHours = effectiveRemainingServiceSecs / 3600;
+        const serviceDue = remainingServiceHours <= 0;
+        const serviceSoon = remainingServiceHours > 0 && remainingServiceHours <= 10;
 
         const events = historicoImpressoras.filter(event => event.impressoraId === printer.id).slice(0, 5);
         const lastMaintenance = historicoImpressoras.find(event => event.impressoraId === printer.id && event.tipo === 'maintenance_completed');
         
         const customMeta = customInvestments[printer.id];
-        const custoInvestimento = customMeta ? customMeta.custoInvestimento : (printer.custoInvestimento || 0);
-        const vidaUtil = customMeta ? customMeta.vidaUtilHoras : (printer.vidaUtilHoras || 5000);
-        const depreciacaoH = customMeta ? customMeta.depreciacaoHora : (printer.depreciacaoHora || (vidaUtil > 0 ? custoInvestimento / vidaUtil : 0.50));
+        const custoInvestimento = customMeta && customMeta.custoInvestimento > 0 ? customMeta.custoInvestimento : (printer.custoInvestimento && printer.custoInvestimento > 0 ? printer.custoInvestimento : 5000);
+        const vidaUtil = customMeta && customMeta.vidaUtilHoras > 0 ? customMeta.vidaUtilHoras : (printer.vidaUtilHoras && printer.vidaUtilHoras > 0 ? printer.vidaUtilHoras : 5000);
+        const depreciacaoH = customMeta && customMeta.depreciacaoHora > 0 ? customMeta.depreciacaoHora : (printer.depreciacaoHora && printer.depreciacaoHora > 0 ? printer.depreciacaoHora : (vidaUtil > 0 ? custoInvestimento / vidaUtil : 1.00));
 
         return <Card key={printer.id} className="space-y-4 rounded-2xl border-slate-800 bg-slate-900 p-5">
           <div className="flex items-start justify-between gap-3">
@@ -564,7 +585,7 @@ export const ParqueImpressoras: React.FC = () => {
             <div className="rounded-xl bg-slate-950 px-4 py-3 text-sm text-slate-400">Nenhum trabalho em produção.</div>
           )}
 
-          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-950 p-3"><p className="text-[11px] text-slate-500">Horas de impressão</p><p className="mt-1 font-semibold text-white">{formatHours(printer.horasUso)}</p><p className="text-[10px] text-slate-500">Estimadas em projetos concluídos</p></div><div className={`rounded-xl p-3 ${serviceDue ? 'bg-orange-500/10' : serviceSoon ? 'bg-amber-500/10' : 'bg-slate-950'}`}><p className="text-[11px] text-slate-500">Próxima manutenção</p><p className={`mt-1 font-semibold ${serviceDue ? 'text-orange-300' : serviceSoon ? 'text-amber-300' : 'text-white'}`}>{serviceDue ? 'Manutenção necessária' : `Em ${formatHours(remainingService)}`}</p><p className="text-[10px] text-slate-500">Intervalo: {printer.intervaloManutencaoHoras || 100} h · Última: {lastMaintenance ? new Date(lastMaintenance.data).toLocaleDateString('pt-BR') : 'sem registro'}</p></div></div>
+          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-950 p-3"><p className="text-[11px] text-slate-500">Horas de impressão</p><p className="mt-1 font-semibold text-white">{formatSecondsToTime(effectiveUsageSeconds)}</p><p className="text-[10px] text-slate-500">{elapsedPrintSeconds > 0 ? 'Em produção + concluídos' : 'Estimadas em projetos concluídos'}</p></div><div className={`rounded-xl p-3 ${serviceDue ? 'bg-orange-500/10' : serviceSoon ? 'bg-amber-500/10' : 'bg-slate-950'}`}><p className="text-[11px] text-slate-500">Próxima manutenção</p><p className={`mt-1 font-semibold ${serviceDue ? 'text-orange-300' : serviceSoon ? 'text-amber-300' : 'text-white'}`}>{serviceDue ? 'Manutenção necessária' : `Em ${formatSecondsToTime(effectiveRemainingServiceSecs)}`}</p><p className="text-[10px] text-slate-500">Intervalo: {printer.intervaloManutencaoHoras || 100} h · Última: {lastMaintenance ? new Date(lastMaintenance.data).toLocaleDateString('pt-BR') : 'sem registro'}</p></div></div>
 
           <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-3">
             {printer.status === 'imprimindo' && (
@@ -589,13 +610,14 @@ export const ParqueImpressoras: React.FC = () => {
             )}
             {printer.status === 'disponivel' && <Link to="/cliente/projetos"><Button size="sm" className="bg-indigo-600 text-xs text-white hover:bg-indigo-500"><Play className="mr-1.5 h-3.5 w-3.5" />Iniciar impressão</Button></Link>}
             {printer.status === 'disponivel' && <Button size="sm" variant="outline" onClick={() => updateImpressoraStatus(printer.id, 'desconectada')} className="border-slate-700 bg-slate-950 text-xs text-slate-200 hover:bg-slate-800 hover:text-white">Marcar offline</Button>}
+            {printer.status === 'disponivel' && <Button size="sm" variant="ghost" onClick={() => updateImpressoraStatus(printer.id, 'manutencao')} className="text-xs text-slate-300 hover:text-orange-300"><Wrench className="mr-1.5 h-3.5 w-3.5" />Iniciar manutenção</Button>}
             {printer.status === 'desconectada' && <Button size="sm" variant="outline" onClick={() => updateImpressoraStatus(printer.id, 'disponivel')} className="border-slate-700 bg-slate-950 text-xs text-white hover:bg-slate-800">Marcar disponível</Button>}
-            {!printer.projetoAtualId && printer.status !== 'manutencao' && <Button size="sm" variant="ghost" onClick={() => updateImpressoraStatus(printer.id, 'manutencao')} className="text-xs text-slate-300 hover:text-orange-300"><Wrench className="mr-1.5 h-3.5 w-3.5" />Iniciar manutenção</Button>}
+            {!printer.projetoAtualId && printer.status !== 'manutencao' && printer.status !== 'disponivel' && <Button size="sm" variant="ghost" onClick={() => updateImpressoraStatus(printer.id, 'manutencao')} className="text-xs text-slate-300 hover:text-orange-300"><Wrench className="mr-1.5 h-3.5 w-3.5" />Iniciar manutenção</Button>}
             {!printer.projetoAtualId && printer.status === 'manutencao' && <Button size="sm" variant="ghost" onClick={() => setMaintenancePrinter(printer.id)} className="text-xs text-orange-300 hover:text-orange-200"><Wrench className="mr-1.5 h-3.5 w-3.5" />Registrar manutenção concluída</Button>}
             {printer.projetoAtualId && <span className="self-center text-[11px] text-slate-500">Finalize ou cancele o projeto antes da manutenção.</span>}
           </div>
 
-          {events.length > 0 && <div className="border-t border-slate-800 pt-3"><p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-300"><History className="h-3.5 w-3.5" />Histórico recente</p><div className="space-y-2">{events.map(event => <div key={event.id} className="flex items-center justify-between gap-2 text-xs"><div className="min-w-0"><span className="text-slate-300">{event.tipo === 'project_completed' ? `Concluiu: ${String(event.payload.project_name || 'Projeto')}` : event.tipo === 'maintenance_completed' ? 'Manutenção registrada' : `Status: ${STATUS[String(event.payload.to) as Impressora3D['status']]?.label || event.payload.to || 'atualizado'}`}</span>{event.tipo === 'maintenance_completed' && Array.isArray(event.payload.tasks) && <p className="truncate text-[10px] text-slate-500">{(event.payload.tasks as string[]).join(' · ')}</p>}</div><span className="shrink-0 text-slate-500">{new Date(event.data).toLocaleDateString('pt-BR')}{event.tipo === 'project_completed' ? ` · ${formatHours(Number(event.payload.hours || 0))}` : ''}</span></div>)}</div></div>}
+          {events.length > 0 && <div className="border-t border-slate-800 pt-3"><p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-300"><History className="h-3.5 w-3.5" />Histórico recente</p><div className="space-y-2">{events.map(event => <div key={event.id} className="flex items-center justify-between gap-2 text-xs"><div className="min-w-0"><span className="text-slate-300">{event.tipo === 'project_completed' ? `Concluiu: ${String(event.payload.project_name || 'Projeto')}` : event.tipo === 'maintenance_completed' ? 'Manutenção registrada' : `Status: ${STATUS[String(event.payload.to) as Impressora3D['status']]?.label || event.payload.to || 'atualizado'}${event.payload.project ? ` (${String(event.payload.project)})` : ''}`}</span>{event.tipo === 'maintenance_completed' && Array.isArray(event.payload.tasks) && <p className="truncate text-[10px] text-slate-500">{(event.payload.tasks as string[]).join(' · ')}</p>}</div><span className="shrink-0 text-slate-500">{new Date(event.data).toLocaleDateString('pt-BR')}{event.tipo === 'project_completed' ? ` · ${formatHours(Number(event.payload.hours || 0))}` : ''}</span></div>)}</div></div>}
           {(serviceDue || serviceSoon) && <p className={`flex items-center gap-2 text-xs ${serviceDue ? 'text-orange-300' : 'text-amber-300'}`}><AlertTriangle className="h-4 w-4" />{serviceDue ? 'Manutenção no intervalo atingido.' : 'Manutenção próxima.'}</p>}
         </Card>;
       })}
@@ -617,6 +639,8 @@ export const ParqueImpressoras: React.FC = () => {
             <Field label="Bico (mm)"><Input type="number" step="0.1" value={editBico} onChange={e => setEditBico(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
             <Field label="Preço Investimento (R$)"><Input type="number" step="0.01" value={editPrecoCompra} onChange={e => setEditPrecoCompra(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
             <Field label="Vida útil (Horas)"><Input type="number" step="100" value={editVidaUtil} onChange={e => setEditVidaUtil(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
+            <Field label="Manutenção a cada (h)"><Input type="number" min="1" step="1" value={editIntervaloManutencao} onChange={e => setEditIntervaloManutencao(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
+            <Field label="Horas de impressão acumuladas"><Input type="number" min="0" step="0.5" value={editHorasUso} onChange={e => setEditHorasUso(e.target.value)} className="bg-slate-950 text-white border-slate-700" /></Field>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

@@ -5,15 +5,53 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
-type PrinterRow = { id: string; name: string; model: string; type: string; status: string; power_watts: number; nozzle_mm: number; hours_used: number; hours_since_maintenance: number; maintenance_interval_hours: number; current_project_id: string | null; current_project_name: string | null; progress_percent: number };
+type PrinterRow = {
+  id: string;
+  name: string;
+  model: string;
+  type: string;
+  status: string;
+  power_watts: number;
+  nozzle_mm: number;
+  hours_used: number;
+  hours_since_maintenance: number;
+  maintenance_interval_hours: number;
+  current_project_id: string | null;
+  current_project_name: string | null;
+  progress_percent: number;
+  investment_cost?: number | null;
+  lifespan_hours?: number | null;
+  depreciation_per_hour?: number | null;
+};
 type PrinterEventRow = { id: string; printer_id: string; event_type: string; payload: Record<string, unknown>; created_at: string };
-const fromRow = (row: PrinterRow): Impressora3D => ({
-  id: row.id, nome: row.name, modelo: row.model, tipo: row.type === 'FDM' ? 'FDM' : 'Resina SLA',
-  status: row.status as Impressora3D['status'], potenciaWatts: row.power_watts, bicoMm: Number(row.nozzle_mm),
-  horasUso: Number(row.hours_used), horasDesdeManutencao: Number(row.hours_since_maintenance || 0),
-  intervaloManutencaoHoras: Number(row.maintenance_interval_hours || 100), limiteHorasManutencao: Number(row.maintenance_interval_hours || 100), projetoAtualId: row.current_project_id || undefined,
-  projetoAtual: row.current_project_name || undefined, progressoPercentual: row.progress_percent,
-});
+const fromRow = (row: PrinterRow): Impressora3D => {
+  const custoInvestimento = row.investment_cost !== undefined && row.investment_cost !== null ? Number(row.investment_cost) : 5000;
+  const vidaUtilHoras = row.lifespan_hours !== undefined && row.lifespan_hours !== null && Number(row.lifespan_hours) > 0 ? Number(row.lifespan_hours) : 5000;
+  const depreciacaoHora =
+    row.depreciation_per_hour !== undefined && row.depreciation_per_hour !== null && Number(row.depreciation_per_hour) > 0
+      ? Number(row.depreciation_per_hour)
+      : Number((custoInvestimento / vidaUtilHoras).toFixed(2));
+
+  return {
+    id: row.id,
+    nome: row.name,
+    modelo: row.model,
+    tipo: row.type === 'FDM' ? 'FDM' : 'Resina SLA',
+    status: row.status as Impressora3D['status'],
+    potenciaWatts: row.power_watts,
+    bicoMm: Number(row.nozzle_mm),
+    horasUso: Number(row.hours_used),
+    horasDesdeManutencao: Number(row.hours_since_maintenance || 0),
+    intervaloManutencaoHoras: Number(row.maintenance_interval_hours || 100),
+    limiteHorasManutencao: Number(row.maintenance_interval_hours || 100),
+    projetoAtualId: row.current_project_id || undefined,
+    projetoAtual: row.current_project_name || undefined,
+    progressoPercentual: row.progress_percent,
+    custoInvestimento,
+    vidaUtilHoras,
+    depreciacaoHora,
+  };
+};
 
 export function useImpressorasState(currentPlan: Plan) {
   const { user } = useAuth();
@@ -59,12 +97,18 @@ export function useImpressorasState(currentPlan: Plan) {
     const gate = FeatureGatingService.canAddPrinter(impressoras.length, currentPlan);
     if (!gate.allowed) { toast.error(gate.status.message || 'Limite de impressoras atingido.'); return false; }
     if (!user?.companyId || !supabase) { toast.error('Entre na conta para salvar a impressora.'); return false; }
+    const invCost = imp.custoInvestimento !== undefined ? Number(imp.custoInvestimento) : 5000;
+    const lifeHours = imp.vidaUtilHoras !== undefined && Number(imp.vidaUtilHoras) > 0 ? Number(imp.vidaUtilHoras) : 5000;
+    const depHour = imp.depreciacaoHora !== undefined ? Number(imp.depreciacaoHora) : Number((invCost / lifeHours).toFixed(2));
     void Promise.resolve(supabase.from('spartan_printers').insert({
       company_id: user.companyId, name: imp.nome, model: imp.modelo, type: imp.tipo === 'FDM' ? 'FDM' : 'SLA',
       status: imp.status, power_watts: imp.potenciaWatts, nozzle_mm: imp.bicoMm, hours_used: imp.horasUso,
       maintenance_interval_hours: imp.intervaloManutencaoHoras || 100,
       current_project_id: imp.projetoAtualId || null, current_project_name: imp.projetoAtual || null,
       progress_percent: imp.progressoPercentual || 0,
+      investment_cost: invCost,
+      lifespan_hours: lifeHours,
+      depreciation_per_hour: depHour,
     }).select('*').single()).then(({ data, error }) => {
       if (error) throw error;
       setImpressoras(prev => [fromRow(data as PrinterRow), ...prev]);
@@ -109,6 +153,11 @@ export function useImpressorasState(currentPlan: Plan) {
       if (imp.potenciaWatts !== undefined) updateData.power_watts = imp.potenciaWatts;
       if (imp.bicoMm !== undefined) updateData.nozzle_mm = imp.bicoMm;
       if (imp.intervaloManutencaoHoras !== undefined) updateData.maintenance_interval_hours = imp.intervaloManutencaoHoras;
+      if (imp.horasUso !== undefined) updateData.hours_used = imp.horasUso;
+      if (imp.horasDesdeManutencao !== undefined) updateData.hours_since_maintenance = imp.horasDesdeManutencao;
+      if (imp.custoInvestimento !== undefined) updateData.investment_cost = imp.custoInvestimento;
+      if (imp.vidaUtilHoras !== undefined) updateData.lifespan_hours = imp.vidaUtilHoras;
+      if (imp.depreciacaoHora !== undefined) updateData.depreciation_per_hour = imp.depreciacaoHora;
 
       const { data, error } = await supabase.from('spartan_printers')
         .update(updateData)
