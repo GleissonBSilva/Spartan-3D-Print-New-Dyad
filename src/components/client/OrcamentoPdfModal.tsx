@@ -81,6 +81,8 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
     return 'PIX / Cartão de Crédito / Débito / Dinheiro';
   })();
 
+  const clientContact = projeto.clienteContato?.trim() || '';
+
   const handlePrint = () => window.print();
 
   const handleSendWhatsapp = () => {
@@ -96,6 +98,7 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
     const text = encodeURIComponent(
       `ORÇAMENTO COMERCIAL #${reference} — ${companyName}\n\n` +
       `Cliente: ${projeto.clienteNome || 'Cliente'}\n` +
+      (clientContact ? `Contato do Cliente: ${clientContact}\n` : '') +
       `Produto/Projeto: ${productName}\n` +
       `Peso total: ${projeto.pesoEstimadoG ?? '—'} g\n` +
       `Tempo impresso: ${projeto.tempoEstimadoHoras ?? '—'} h\n` +
@@ -107,7 +110,13 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
       `Condições: Sinal de ${downPaymentPercent}% (${money(downPaymentAmount)}) para início da produção (restante ${money(remainingAmount)} na entrega).\n` +
       `Validade: 7 dias úteis`
     );
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener,noreferrer');
+
+    const digits = clientContact.replace(/\D/g, '');
+    const phoneParam = digits.length >= 10
+      ? `&phone=${digits.length <= 11 && !digits.startsWith('55') ? `55${digits}` : digits}`
+      : '';
+
+    window.open(`https://api.whatsapp.com/send?text=${text}${phoneParam}`, '_blank', 'noopener,noreferrer');
     toast.success('Proposta preparada para compartilhar pelo WhatsApp.');
   };
 
@@ -226,7 +235,7 @@ export const OrcamentoPdfModal: React.FC<OrcamentoPdfModalProps> = ({ isOpen, on
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
                 <p><strong className="text-gray-600">Razão / Cliente:</strong> {projeto.clienteNome || 'Cliente não informado'}</p>
-                {companyPhone && <p><strong className="text-gray-600">Contato da Farm:</strong> {companyPhone}</p>}
+                <p><strong className="text-gray-600">Contato do Cliente:</strong> {clientContact || 'Não informado'}</p>
               </div>
               <div>
                 <p><strong className="text-gray-600">Produto / Projeto:</strong> {productName}</p>

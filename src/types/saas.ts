@@ -120,6 +120,7 @@ export interface ProjetoImpressao3D {
   companyId?: string;
   nomePeca: string;
   clienteNome: string;
+  clienteContato?: string;
   impressoraId?: string;
   impressoraNome?: string;
   pesoEstimadoG: number;

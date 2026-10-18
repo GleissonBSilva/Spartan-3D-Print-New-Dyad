@@ -40,6 +40,7 @@ export const Calculadora3D: React.FC = () => {
   // Dados Gerais do Projeto (Campos de simulação da peça iniciam vazios)
   const [nomePeca, setNomePeca] = useState(sourceProject?.nomePeca || '');
   const [clienteNome, setClienteNome] = useState(recalculateProject ? recalculateProject.clienteNome : '');
+  const [clienteContato, setClienteContato] = useState(recalculateProject ? (recalculateProject.clienteContato || '') : '');
   const [tempoHoras, setTempoHoras] = useState<number | string>(sourceProject?.tempoEstimadoHoras || '');
   const [selectedImpressoraId, setSelectedImpressoraId] = useState(sourceProject?.impressoraId || '');
   const [observacoes] = useState(sourceProject?.observacoes || '');
@@ -403,6 +404,7 @@ export const Calculadora3D: React.FC = () => {
       const projectData = {
         nomePeca,
         clienteNome,
+        clienteContato: clienteContato.trim() || undefined,
         impressoraId: selectedImpressoraId || undefined,
         impressoraNome: impressoraAtual?.nome || 'A definir na aprovação',
         pesoEstimadoG: calculationResult.totalWeightGrams,
@@ -527,11 +529,13 @@ export const Calculadora3D: React.FC = () => {
             <div className="relative">
               <PieceDetailsForm 
                 clienteNome={clienteNome} 
+                clienteContato={clienteContato}
                 imageFile={imageFile} 
                 impressoras={impressoras} 
                 nomePeca={nomePeca} 
                 selectedImpressoraId={selectedImpressoraId} 
                 setClienteNome={setClienteNome} 
+                setClienteContato={setClienteContato}
                 setImageFile={setImageFile} 
                 setNomePeca={setNomePeca} 
                 setSelectedImpressoraId={setSelectedImpressoraId} 
@@ -745,6 +749,7 @@ export const Calculadora3D: React.FC = () => {
         projeto={{
           nomePeca,
           clienteNome,
+          clienteContato: clienteContato.trim() || undefined,
           materials,
           filamentoUtilizado: materials.map(m => `${m.filamentType} ${m.color} (${m.weightGrams}g)`).join(' + '),
           pesoEstimadoG: calculationResult.totalWeightGrams,

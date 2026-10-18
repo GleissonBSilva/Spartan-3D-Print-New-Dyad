@@ -12,6 +12,8 @@ interface PieceDetailsFormProps {
   setNomePeca: (val: string) => void;
   clienteNome: string;
   setClienteNome: (val: string) => void;
+  clienteContato?: string;
+  setClienteContato?: (val: string) => void;
   selectedImpressoraId: string;
   setSelectedImpressoraId: (val: string) => void;
   tempoHoras: number | string;
@@ -26,6 +28,8 @@ export const PieceDetailsForm: React.FC<PieceDetailsFormProps> = ({
   setNomePeca,
   clienteNome,
   setClienteNome,
+  clienteContato = '',
+  setClienteContato,
   selectedImpressoraId,
   setSelectedImpressoraId,
   tempoHoras,
@@ -140,7 +144,7 @@ export const PieceDetailsForm: React.FC<PieceDetailsFormProps> = ({
         <h3 className="font-bold text-white text-sm">Dados da Peça & Cliente</h3>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="text-xs font-semibold text-slate-300 block mb-1">
             Nome da Peça / Arquivo STL
@@ -156,12 +160,25 @@ export const PieceDetailsForm: React.FC<PieceDetailsFormProps> = ({
 
         <div>
           <label className="text-xs font-semibold text-slate-300 block mb-1">
-            Cliente / Solicitante
+            Cliente / Solicitante <span className="text-[10px] font-normal text-slate-500">(Opcional)</span>
           </label>
           <Input
             value={clienteNome}
             onChange={e => setClienteNome(e.target.value)}
             placeholder="Ex: Mariana Silva Arquitetura"
+            className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-10"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-300 block mb-1">
+            Contato do Cliente <span className="text-[10px] font-normal text-slate-500">(Opcional)</span>
+          </label>
+          <Input
+            type="tel"
+            value={clienteContato}
+            onChange={e => setClienteContato?.(e.target.value)}
+            placeholder="Ex: (11) 99999-9999"
             className="bg-slate-950 border-slate-750 text-white text-xs rounded-xl h-10"
           />
         </div>

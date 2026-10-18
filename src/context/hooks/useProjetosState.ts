@@ -13,7 +13,7 @@ interface UseProjetosStateProps {
 }
 
 type ProjectRow = {
-  id: string; part_name: string; customer_name: string; printer_id: string | null; materials: ProjectMaterial[];
+  id: string; part_name: string; customer_name: string; customer_phone?: string | null; printer_id: string | null; materials: ProjectMaterial[];
   estimated_weight_g: number; estimated_hours: number; material_cost: number; energy_cost: number;
   depreciation_cost: number; labor_cost: number; other_cost: number; total_cost: number;
   margin_percent: number; charged_price: number; net_profit: number; status: ProjetoImpressao3D['status'];
@@ -40,6 +40,7 @@ const fromRow = (row: ProjectRow): ProjetoImpressao3D => {
     id: row.id,
     nomePeca: row.part_name,
     clienteNome: row.customer_name,
+    clienteContato: row.customer_phone || undefined,
     impressoraId: row.printer_id || undefined,
     pesoEstimadoG: Number(row.estimated_weight_g),
     tempoEstimadoHoras: Number(row.estimated_hours),
@@ -118,6 +119,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
 
     void Promise.resolve(supabase.from('spartan_projects').insert({
       company_id: user.companyId, created_by: user.id, part_name: proj.nomePeca, customer_name: proj.clienteNome,
+      customer_phone: proj.clienteContato?.trim() || null,
       printer_id: proj.impressoraId || null, materials: proj.materials, estimated_weight_g: proj.pesoEstimadoG,
       estimated_hours: proj.tempoEstimadoHoras, material_cost: proj.custoMaterial, energy_cost: proj.custoEnergia,
       depreciation_cost: proj.custoDepreciacao, labor_cost: proj.custoMaoDeObra || 0, other_cost: proj.outrosCustos || 0,
@@ -208,6 +210,7 @@ export function useProjetosState({ currentPlan, impressoras, refreshFilamentos, 
     const update = {
       ...(changes.nomePeca !== undefined ? { part_name: changes.nomePeca.trim() } : {}),
       ...(changes.clienteNome !== undefined ? { customer_name: changes.clienteNome.trim() } : {}),
+      ...(changes.clienteContato !== undefined ? { customer_phone: changes.clienteContato.trim() || null } : {}),
       ...(changes.impressoraId !== undefined ? { printer_id: changes.impressoraId || null } : {}),
       ...(changes.quantidade !== undefined ? { quantity: changes.quantidade } : {}),
       ...(changes.dataEntrega !== undefined ? { due_date: changes.dataEntrega || null } : {}),
