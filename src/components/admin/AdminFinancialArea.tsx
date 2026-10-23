@@ -33,6 +33,7 @@ import {
   PixConfig,
   getSavedPixConfig,
   savePixConfig,
+  syncPixConfigFromSupabase,
   generatePixPayload,
   getPixQrCodeUrl,
 } from '@/services/pixService';
@@ -49,15 +50,35 @@ export const AdminFinancialArea: React.FC = () => {
     refreshBilling,
   } = useSaaSData();
 
-  // Configuração Pix isolada por user.id
+  // Configuração Pix isolada por user.id e sincronizada na nuvem (Supabase)
   const [pixConfig, setPixConfig] = useState<PixConfig>(() => getSavedPixConfig(user?.id));
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<PixConfig>(() => getSavedPixConfig(user?.id));
+  const [savingConfig, setSavingConfig] = useState(false);
 
   React.useEffect(() => {
-    const saved = getSavedPixConfig(user?.id);
-    setPixConfig(saved);
-    setEditingConfig(saved);
+    if (!user?.id) return;
+    const local = getSavedPixConfig(user.id);
+    if (local.chave) {
+      setPixConfig(local);
+      setEditingConfig(local);
+    }
+
+    void syncPixConfigFromSupabase(user.id).then(cloudConfig => {
+      if (cloudConfig && cloudConfig.chave) {
+        setPixConfig(cloudConfig);
+        setEditingConfig(cloudConfig);
+      }
+    });
+
+    const handleUpdate = () => {
+      const updated = getSavedPixConfig(user.id);
+      setPixConfig(updated);
+      setEditingConfig(updated);
+    };
+
+    window.addEventListener('spartan_pix_config_updated', handleUpdate);
+    return () => window.removeEventListener('spartan_pix_config_updated', handleUpdate);
   }, [user?.id]);
 
   // Modal Nova Cobrança Pix
@@ -135,12 +156,19 @@ export const AdminFinancialArea: React.FC = () => {
     }
   };
 
-  const handleSaveConfig = (e: React.FormEvent) => {
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    savePixConfig(editingConfig, user?.id);
+    setSavingConfig(true);
     setPixConfig(editingConfig);
     setShowConfigModal(false);
-    toast.success('Configuração da Chave Pix salva com sucesso!');
+    try {
+      await savePixConfig(editingConfig, user?.id);
+      toast.success('Configuração da Chave Pix salva na nuvem com sucesso!');
+    } catch {
+      toast.error('Não foi possível salvar na nuvem, mas o valor foi mantido no navegador.');
+    } finally {
+      setSavingConfig(false);
+    }
   };
 
   const handleOpenNewCharge = (preselectClientId?: string) => {
@@ -645,9 +673,10 @@ export const AdminFinancialArea: React.FC = () => {
                 </Button>
                 <Button
                   type="submit"
+                  disabled={savingConfig}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold"
                 >
-                  Salvar Chave Pix
+                  {savingConfig ? 'Salvando na Nuvem...' : 'Salvar Chave Pix'}
                 </Button>
               </div>
             </form>

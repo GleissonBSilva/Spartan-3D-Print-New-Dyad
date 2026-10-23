@@ -60,55 +60,52 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
               <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-y border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Cliente / Empresa</th>
-                  <th className="py-3 px-4">Contato (WhatsApp)</th>
-                  <th className="py-3 px-4">Plano</th>
-                  <th className="py-3 px-4">MRR</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Data de Início</th>
+                  <th className="py-3 px-3">Plano</th>
+                  <th className="py-3 px-3">MRR</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3">Data de Início</th>
                   <th className="py-3 px-4 text-right">Ações Rápidas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {clients.map(client => (
                   <tr key={client.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         {client.avatar ? (
                           <img
                             src={client.avatar}
                             alt={client.name}
-                            className="w-8 h-8 rounded-full object-cover"
+                            className="w-8 h-8 rounded-full object-cover shrink-0"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
                             <User className="w-4 h-4" />
                           </div>
                         )}
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-bold text-white text-sm">{client.name}</p>
                           <p className="text-[11px] text-slate-400">
                             {client.companyName ? `${client.companyName} • ${client.email}` : client.email}
                           </p>
+                          {client.companyPhone && (
+                            <div className="mt-1">
+                              <a
+                                href={`https://wa.me/${normalizeWhatsAppPhone(client.companyPhone)}?text=${encodeURIComponent(`Olá, ${client.name}! Aqui é a equipe da Spartan 3D Farm.`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-medium hover:underline"
+                                title="Conversar no WhatsApp com o cliente"
+                              >
+                                <MessageCircle className="w-3 h-3 text-emerald-400" />
+                                <span>{client.companyPhone}</span>
+                              </a>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
-                      {client.companyPhone ? (
-                        <a
-                          href={`https://wa.me/${normalizeWhatsAppPhone(client.companyPhone)}?text=${encodeURIComponent(`Olá, ${client.name}! Aqui é a equipe de suporte da Spartan 3D Farm.`)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-medium transition-colors text-[11px]"
-                          title="Abrir WhatsApp direto do cliente"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{client.companyPhone}</span>
-                        </a>
-                      ) : (
-                        <span className="text-slate-500 italic text-[11px]">Não informado</span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-3">
                       <Badge variant="outline" className="border-indigo-500/40 text-indigo-300 bg-indigo-500/10">
                         {client.planId === 'plan_enterprise'
                           ? 'Enterprise VIP'
@@ -117,10 +114,10 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                           : 'Pro Scaler'}
                       </Badge>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-white">
+                    <td className="py-3 px-3 font-bold text-white">
                       R$ {client.mrr}/mês
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-3">
                       {client.status === 'active' && (
                         <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
                           <CheckCircle2 className="w-3 h-3" /> Ativo
@@ -147,7 +144,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-400">
+                    <td className="py-3 px-3 text-slate-400">
                       {client.joinedAt ? new Date(client.joinedAt).toLocaleDateString('pt-BR') : '—'}
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
@@ -159,7 +156,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         title="Gerar cobrança Pix para o cliente"
                       >
                         <QrCode className="w-3 h-3 mr-1" />
-                        Cobrar Pix
+                        Pix
                       </Button>
 
                       {client.companyPhone && (
@@ -175,8 +172,8 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <MessageCircle className="w-3 h-3 mr-1 text-emerald-400" />
-                            WhatsApp
+                            <MessageCircle className="w-3 h-3 text-emerald-400" />
+                            <span className="hidden xl:inline ml-1">WhatsApp</span>
                           </a>
                         </Button>
                       )}
@@ -185,11 +182,11 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         <Button
                           size="sm"
                           onClick={() => updateClientStatus(client.id, 'active')}
-                          className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
+                          className="h-7 px-2 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
                           title="Ativar assinatura definitiva após pagamento"
                         >
                           <CheckCircle2 className="w-3 h-3 mr-1" />
-                          Ativar Conta
+                          Ativar
                         </Button>
                       )}
 
@@ -197,28 +194,28 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         <Button
                           size="sm"
                           onClick={() => updateClientStatus(client.id, 'active')}
-                          className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
+                          className="h-7 px-2 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg font-semibold transition-all"
                           title="Liberar e ativar acesso do cliente imediatamente após pagamento"
                         >
                           <Unlock className="w-3 h-3 mr-1" />
-                          Desbloquear (Ativar)
+                          Desbloquear
                         </Button>
                       ) : (
                         <Button
                           size="sm"
                           onClick={() => updateClientStatus(client.id, 'overdue')}
-                          className="h-7 px-2.5 text-[11px] bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 rounded-lg font-semibold transition-all"
+                          className="h-7 px-2 text-[11px] bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 rounded-lg font-semibold transition-all"
                           title="Alterar para atrasado e bloquear o acesso imediato do cliente"
                         >
                           <Lock className="w-3 h-3 mr-1" />
-                          Bloquear (Atrasado)
+                          Bloquear
                         </Button>
                       )}
 
                       <Button
                         size="sm"
                         onClick={() => setClientToDelete(client)}
-                        className="h-7 px-2.5 text-[11px] bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg font-semibold transition-all"
+                        className="h-7 px-2 text-[11px] bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg font-semibold transition-all"
                         title="Excluir usuário e apagar todos os seus dados no Supabase"
                       >
                         <Trash2 className="w-3 h-3 mr-1" />

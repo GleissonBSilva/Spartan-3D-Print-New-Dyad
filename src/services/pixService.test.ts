@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { generatePixPayload, calculateCRC16 } from './pixService';
+import {
+  generatePixPayload,
+  calculateCRC16,
+  getSavedPixConfig,
+  savePixConfig,
+  DEFAULT_PIX_CONFIG,
+  PixConfig,
+} from './pixService';
 
 describe('pixService', () => {
   it('calculates valid CRC16 for standard string', () => {
@@ -25,5 +32,27 @@ describe('pixService', () => {
     expect(payload).toContain('5802BR'); // País
     expect(payload).toContain('6304'); // Header do CRC16
     expect(payload.length).toBeGreaterThan(60);
+  });
+
+  it('returns default Pix config when user is not provided or storage is empty', () => {
+    const config = getSavedPixConfig(null);
+    expect(config.chave).toBe(DEFAULT_PIX_CONFIG.chave);
+    expect(config.cidade).toBe(DEFAULT_PIX_CONFIG.cidade);
+  });
+
+  it('saves and retrieves user-scoped Pix config reliably', async () => {
+    const testConfig: PixConfig = {
+      chave: '92993746740',
+      tipoChave: 'telefone',
+      nomeTitular: 'GLEISSON SILVA',
+      cidade: 'MANAUS',
+    };
+
+    await savePixConfig(testConfig, 'test-user-admin-123');
+    const loaded = getSavedPixConfig('test-user-admin-123');
+
+    expect(loaded.chave).toBe('92993746740');
+    expect(loaded.nomeTitular).toBe('GLEISSON SILVA');
+    expect(loaded.cidade).toBe('MANAUS');
   });
 });
