@@ -32,7 +32,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { email: string; password: string; name: string; companyName: string }) => Promise<boolean>;
+  register: (data: { email: string; password: string; name: string; companyName: string; phone?: string }) => Promise<boolean>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<User>) => Promise<void>;
@@ -185,10 +185,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async ({ email, password, name, companyName }: { email: string; password: string; name: string; companyName: string }): Promise<boolean> => {
+  const register = async ({ email, password, name, companyName, phone }: { email: string; password: string; name: string; companyName: string; phone?: string }): Promise<boolean> => {
     const { data, error } = await requireSupabase().auth.signUp({
       email: email.trim(), password,
-      options: { data: { full_name: name.trim(), company_name: companyName.trim() } },
+      options: {
+        data: {
+          full_name: name.trim(),
+          company_name: companyName.trim(),
+          company_phone: phone?.trim() || '',
+        },
+      },
     });
     throwAuthError(error);
     return Boolean(data.session);

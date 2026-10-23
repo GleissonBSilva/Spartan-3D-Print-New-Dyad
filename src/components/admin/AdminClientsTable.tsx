@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, QrCode, CheckCircle2, Clock, User, Lock, Unlock, Ban, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, QrCode, CheckCircle2, Clock, User, Lock, Unlock, Ban, Trash2, AlertTriangle, Loader2, MessageCircle } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { User as SaaSUser } from '@/types/saas';
+import { normalizeWhatsAppPhone } from '@/services/whatsappService';
 
 interface AdminClientsTableProps {
   onOpenNewClientModal: () => void;
@@ -59,6 +60,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
               <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-y border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Cliente / Empresa</th>
+                  <th className="py-3 px-4">Contato (WhatsApp)</th>
                   <th className="py-3 px-4">Plano</th>
                   <th className="py-3 px-4">MRR</th>
                   <th className="py-3 px-4">Status</th>
@@ -89,6 +91,22 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                           </p>
                         </div>
                       </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {client.companyPhone ? (
+                        <a
+                          href={`https://wa.me/${normalizeWhatsAppPhone(client.companyPhone)}?text=${encodeURIComponent(`Olá, ${client.name}! Aqui é a equipe de suporte da Spartan 3D Farm.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-medium transition-colors text-[11px]"
+                          title="Abrir WhatsApp direto do cliente"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{client.companyPhone}</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-500 italic text-[11px]">Não informado</span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge variant="outline" className="border-indigo-500/40 text-indigo-300 bg-indigo-500/10">
@@ -143,6 +161,25 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         <QrCode className="w-3 h-3 mr-1" />
                         Cobrar Pix
                       </Button>
+
+                      {client.companyPhone && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          asChild
+                          className="h-7 px-2 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg border border-emerald-500/20"
+                          title="Conversar com o cliente no WhatsApp"
+                        >
+                          <a
+                            href={`https://wa.me/${normalizeWhatsAppPhone(client.companyPhone)}?text=${encodeURIComponent(`Olá, ${client.name}! Aqui é da equipe Spartan 3D.`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <MessageCircle className="w-3 h-3 mr-1 text-emerald-400" />
+                            WhatsApp
+                          </a>
+                        </Button>
+                      )}
 
                       {client.status === 'trialing' && (
                         <Button

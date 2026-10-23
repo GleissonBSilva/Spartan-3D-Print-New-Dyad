@@ -23,6 +23,7 @@ import {
   Bell,
   ArrowLeftRight,
   CircleDollarSign,
+  MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +31,7 @@ import { toast } from 'sonner';
 import type { LucideIcon } from 'lucide-react';
 import { registerPushDevice } from '@/services/notificationService';
 import { canAccessAdmin } from '@/lib/permissions';
+import { SPARTAN_OFFICIAL_WHATSAPP_NUMBER, SPARTAN_OFFICIAL_WHATSAPP_DISPLAY } from '@/services/whatsappService';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -147,6 +149,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             </div>
             <span className="font-bold text-white tracking-tight">SPARTAN 3D PRINT</span>
           </div>
+          {!isAdmin && (
+            <a
+              href={`https://wa.me/${SPARTAN_OFFICIAL_WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá, Spartan 3D! Preciso de ajuda com a minha farm${user?.companyName ? ` (${user.companyName})` : ''}.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Suporte via WhatsApp"
+              className="mr-1 h-10 w-10 flex items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+              title={`Suporte WhatsApp Spartan 3D (${SPARTAN_OFFICIAL_WHATSAPP_DISPLAY})`}
+            >
+              <MessageCircle className="h-5 w-5" />
+            </a>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -254,6 +268,27 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               })}
             </div>
 
+            {/* Suporte WhatsApp no menu lateral do cliente */}
+            {!isAdmin && (
+              <div className="mx-3 mb-2 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/20">
+                <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs mb-1">
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Suporte Spartan 3D</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mb-2">Canal direto via WhatsApp com a nossa equipe.</p>
+                <a
+                  href={`https://wa.me/${SPARTAN_OFFICIAL_WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá, Spartan 3D! Preciso de ajuda com a minha farm${user?.companyName ? ` (${user.companyName})` : ''}.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm"
+                  title="Abrir WhatsApp oficial"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>{SPARTAN_OFFICIAL_WHATSAPP_DISPLAY}</span>
+                </a>
+              </div>
+            )}
+
             {/* Footer of sidebar */}
             <div className="p-4 border-t border-slate-800 flex items-center justify-between">
               <button
@@ -282,7 +317,27 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 </div>
                 {subtitle && <p className="text-xs md:text-sm text-slate-400 mt-0.5">{subtitle}</p>}
               </div>
-              <Button size="sm" variant="outline" onClick={handleEnableNotifications} aria-label="Ativar notificações push" className="h-10 border-indigo-400/40 bg-indigo-500/15 px-4 text-sm font-semibold text-indigo-100 hover:bg-indigo-500/25 hover:text-white"><Bell className="mr-2 h-4 w-4" />Ativar avisos</Button>
+              <div className="flex items-center gap-2">
+                {!isAdmin && (
+                  <Button
+                    asChild
+                    size="sm"
+                    className="h-10 border border-emerald-500/40 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white px-3.5 font-semibold transition-all rounded-xl shadow-sm"
+                  >
+                    <a
+                      href={`https://wa.me/${SPARTAN_OFFICIAL_WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá, Spartan 3D! Preciso de ajuda com a minha farm${user?.companyName ? ` (${user.companyName})` : ''}.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Canal oficial Spartan 3D: ${SPARTAN_OFFICIAL_WHATSAPP_DISPLAY}`}
+                    >
+                      <MessageCircle className="mr-2 h-4 w-4 text-emerald-400" />
+                      <span className="hidden sm:inline">Suporte WhatsApp</span>
+                      <span className="sm:hidden">WhatsApp</span>
+                    </a>
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={handleEnableNotifications} aria-label="Ativar notificações push" className="h-10 border-indigo-400/40 bg-indigo-500/15 px-4 text-sm font-semibold text-indigo-100 hover:bg-indigo-500/25 hover:text-white"><Bell className="mr-2 h-4 w-4" />Ativar avisos</Button>
+              </div>
             </header>
 
             {/* Children View */}
@@ -292,6 +347,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </main>
         </div>
       </div>
+
+      {/* Botão Flutuante de WhatsApp exclusivo para o Portal do Cliente */}
+      {!isAdmin && (
+        <a
+          href={`https://wa.me/${SPARTAN_OFFICIAL_WHATSAPP_NUMBER}?text=${encodeURIComponent(`Olá, Spartan 3D! Preciso de suporte para a minha farm${user?.companyName ? ` (${user.companyName})` : ''}.`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs md:text-sm shadow-xl shadow-emerald-950/60 hover:scale-105 active:scale-95 transition-all group border border-emerald-400/40"
+          title={`Falar no WhatsApp Spartan 3D: ${SPARTAN_OFFICIAL_WHATSAPP_DISPLAY}`}
+        >
+          <MessageCircle className="w-5 h-5 text-white" />
+          <span className="hidden sm:inline">Suporte (92) 99374-6740</span>
+        </a>
+      )}
     </div>
   );
 };

@@ -15,7 +15,7 @@ export function useBillingState() {
     await Promise.resolve(supabase.rpc('spartan_sync_expired_trials')).catch(() => undefined);
     if (canAccessAdmin(user)) {
       const [{ data: users, error: userError }, { data: invoiceRows, error: invoiceError }, { data: planRows, error: planError }] = await Promise.all([
-        supabase.from('spartan_profiles').select('id, email, full_name, role, status, plan_id, company_id, company_name, created_at, trial_ends_at').eq('role', 'client'),
+        supabase.from('spartan_profiles').select('id, email, full_name, role, status, plan_id, company_id, company_name, company_phone, created_at, trial_ends_at').eq('role', 'client'),
         supabase.from('spartan_invoices').select('*').order('created_at', { ascending: false }),
         supabase.from('spartan_plans').select('id, price_monthly'),
       ]);
@@ -25,7 +25,7 @@ export function useBillingState() {
       const monthlyPrices = new Map((planRows || []).map((plan: any) => [plan.id, Number(plan.price_monthly)]));
       const mappedClients = (users || []).map((row: any) => ({
         id: row.id, email: row.email || '', name: row.full_name || 'Cliente', role: row.role,
-        avatar: '', companyId: row.company_id, companyName: row.company_name, planId: row.plan_id, status: row.status, mrr: monthlyPrices.get(row.plan_id) || 0,
+        avatar: '', companyId: row.company_id, companyName: row.company_name, companyPhone: row.company_phone || '', planId: row.plan_id, status: row.status, mrr: monthlyPrices.get(row.plan_id) || 0,
         joinedAt: row.created_at,
       })) as User[];
       setClients(mappedClients);
