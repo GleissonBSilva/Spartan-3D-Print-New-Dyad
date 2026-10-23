@@ -83,6 +83,7 @@ function mapUser(authUser: SupabaseUser, profile?: Record<string, unknown> | nul
     status,
     mrr: 0,
     joinedAt: createdAtStr,
+    trialEndsAt: trialEndsAtStr || undefined,
   };
 }
 

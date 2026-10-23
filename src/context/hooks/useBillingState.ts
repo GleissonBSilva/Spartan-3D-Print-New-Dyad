@@ -27,6 +27,7 @@ export function useBillingState() {
         id: row.id, email: row.email || '', name: row.full_name || 'Cliente', role: row.role,
         avatar: '', companyId: row.company_id, companyName: row.company_name, companyPhone: row.company_phone || '', planId: row.plan_id, status: row.status, mrr: monthlyPrices.get(row.plan_id) || 0,
         joinedAt: row.created_at,
+        trialEndsAt: row.trial_ends_at || undefined,
       })) as User[];
       setClients(mappedClients);
       const names = new Map(mappedClients.map(client => [client.id, client.name]));
@@ -74,6 +75,56 @@ export function useBillingState() {
         toast.success('Status do cliente atualizado com sucesso.');
       }
     }).catch(error => toast.error(`Falha ao atualizar cliente: ${error.message}`));
+  };
+
+  const updateClientValidity = async (clientId: string, newDateIso: string, newStatus?: User['status']) => {
+    if (!supabase) return;
+    try {
+      const patch: Record<string, unknown> = {
+        trial_ends_at: newDateIso,
+        updated_at: new Date().toISOString(),
+      };
+      if (newStatus) {
+        patch.status = newStatus;
+      }
+      const { error } = await supabase.from('spartan_profiles').update(patch).eq('id', clientId);
+      if (error) throw error;
+      setClients(prev => prev.map(c => c.id === clientId ? { ...c, trialEndsAt: newDateIso, status: newStatus || c.status } : c));
+      toast.success('Data de vencimento e vigência atualizada com sucesso!');
+    } catch (error) {
+      toast.error(`Falha ao atualizar validade: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+    }
+  };
+
+  const updateMultipleClientsValidity = async (clientIds: string[], newDateIso: string, newStatus?: User['status']) => {
+    if (!supabase || clientIds.length === 0) return;
+    try {
+      const patch: Record<string, unknown> = {
+        trial_ends_at: newDateIso,
+        updated_at: new Date().toISOString(),
+      };
+      if (newStatus) {
+        patch.status = newStatus;
+      }
+      const { error } = await supabase.from('spartan_profiles').update(patch).in('id', clientIds);
+      if (error) throw error;
+      setClients(prev => prev.map(c => clientIds.includes(c.id) ? { ...c, trialEndsAt: newDateIso, status: newStatus || c.status } : c));
+      toast.success(`Vigência atualizada para ${clientIds.length} cliente(s)!`);
+    } catch (error) {
+      toast.error(`Falha ao atualizar vigência em lote: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+    }
+  };
+
+  const updateMultipleClientsStatus = async (clientIds: string[], newStatus: User['status']) => {
+    if (!supabase || clientIds.length === 0) return;
+    try {
+      const { error } = await supabase.from('spartan_profiles').update({ status: newStatus, updated_at: new Date().toISOString() }).in('id', clientIds);
+      if (error) throw error;
+      setClients(prev => prev.map(c => clientIds.includes(c.id) ? { ...c, status: newStatus } : c));
+      toast.success(`Status atualizado para ${clientIds.length} cliente(s)!`);
+    } catch (error) {
+      toast.error(`Falha ao atualizar status em lote: ${error instanceof Error ? error.message : 'erro inesperado'}`);
+    }
   };
 
   const createInvoice = async (clientId: string, amount: number, method: Invoice['method'] = 'pix', planId?: string) => {
@@ -221,6 +272,9 @@ export function useBillingState() {
     invoices,
     addClient,
     updateClientStatus,
+    updateClientValidity,
+    updateMultipleClientsValidity,
+    updateMultipleClientsStatus,
     deleteClient,
     createInvoice,
     createDirectInvoice,

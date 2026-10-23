@@ -282,10 +282,11 @@ export const FinanceiroFarm: React.FC = () => {
       </div>
 
       {/* Linha de Filtros Detalhados */}
-      <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-center">
-        <div>
-          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Intervalo de Datas</label>
-          <div className="flex items-center gap-1.5">
+      <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 items-end">
+        {/* Intervalo de Datas */}
+        <div className="xl:col-span-4 sm:col-span-2">
+          <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">Intervalo de Datas</label>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
             <Input
               type="date"
               value={startDate}
@@ -293,9 +294,9 @@ export const FinanceiroFarm: React.FC = () => {
                 setPeriodPreset('custom');
                 setStartDate(e.target.value);
               }}
-              className="h-8 text-xs bg-slate-950 border-slate-700 text-white"
+              className="h-9 text-xs bg-slate-950 border-slate-700 text-white min-w-0 [color-scheme:dark]"
             />
-            <span className="text-slate-500 text-xs">até</span>
+            <span className="text-slate-500 text-xs px-0.5 text-center">até</span>
             <Input
               type="date"
               value={endDate}
@@ -303,17 +304,18 @@ export const FinanceiroFarm: React.FC = () => {
                 setPeriodPreset('custom');
                 setEndDate(e.target.value);
               }}
-              className="h-8 text-xs bg-slate-950 border-slate-700 text-white"
+              className="h-9 text-xs bg-slate-950 border-slate-700 text-white min-w-0 [color-scheme:dark]"
             />
           </div>
         </div>
 
-        <div>
-          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Status do Projeto</label>
+        {/* Status do Projeto */}
+        <div className="xl:col-span-3 sm:col-span-1">
+          <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">Status do Projeto</label>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="w-full h-8 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 px-2"
+            className="w-full h-9 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 px-2.5 focus:outline-none focus:border-cyan-500"
           >
             <option value="todos">Todos os Status</option>
             <option value="concluido">Concluídos (Faturados)</option>
@@ -324,12 +326,13 @@ export const FinanceiroFarm: React.FC = () => {
           </select>
         </div>
 
-        <div>
-          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Forma de Pagamento</label>
+        {/* Forma de Pagamento */}
+        <div className="xl:col-span-2 sm:col-span-1">
+          <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">Forma de Pagamento</label>
           <select
             value={paymentFilter}
             onChange={e => setPaymentFilter(e.target.value as typeof paymentFilter)}
-            className="w-full h-8 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 px-2"
+            className="w-full h-9 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 px-2.5 focus:outline-none focus:border-cyan-500"
           >
             <option value="todos">Todas as Formas</option>
             <option value="pix">Pix</option>
@@ -339,15 +342,16 @@ export const FinanceiroFarm: React.FC = () => {
           </select>
         </div>
 
-        <div>
-          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Buscar Peça ou Cliente</label>
+        {/* Buscar Peça ou Cliente */}
+        <div className="xl:col-span-3 sm:col-span-2">
+          <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">Buscar Peça ou Cliente</label>
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <Input
               placeholder="Ex: Luminária, João..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 text-xs bg-slate-950 border-slate-700 text-white"
+              className="h-9 pl-9 text-xs bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 rounded-lg w-full"
             />
           </div>
         </div>

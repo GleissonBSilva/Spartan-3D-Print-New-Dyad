@@ -24,6 +24,8 @@ import {
   ArrowLeftRight,
   CircleDollarSign,
   MessageCircle,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -342,6 +344,56 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
             {/* Children View */}
             <div className="p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+              {/* Alerta de Período de Teste Gratuito para o Cliente */}
+              {!isAdmin && user?.status === 'trialing' && (() => {
+                const trialEndMs = user.trialEndsAt
+                  ? new Date(user.trialEndsAt).getTime()
+                  : (user.joinedAt ? new Date(user.joinedAt).getTime() + 14 * 24 * 60 * 60 * 1000 : Date.now());
+                const remainingDays = Math.max(0, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
+                const isUrgent = remainingDays <= 3;
+                const endDate = new Date(trialEndMs).toLocaleDateString('pt-BR');
+
+                return (
+                  <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg ${
+                    isUrgent
+                      ? 'bg-gradient-to-r from-amber-950/70 via-slate-900 to-slate-900 border-amber-500/50 text-amber-200'
+                      : 'bg-gradient-to-r from-indigo-950/50 via-slate-900 to-slate-900 border-indigo-500/30 text-indigo-200'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl shrink-0 ${isUrgent ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+                        {isUrgent ? <AlertTriangle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-white">
+                            {isUrgent
+                              ? `Atenção: Seu teste grátis encerra em ${remainingDays} dia${remainingDays === 1 ? '' : 's'}!`
+                              : `Período de Teste Grátis: ${remainingDays} dias restantes`}
+                          </p>
+                          <Badge variant="outline" className={isUrgent ? 'border-amber-400/50 text-amber-300 bg-amber-400/10 text-[10px]' : 'border-indigo-400/40 text-indigo-300 bg-indigo-500/10 text-[10px]'}>
+                            Até {endDate}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-300 mt-0.5">
+                          Para manter suas impressoras, filamentos e histórico de peças ativos após o término, ative sua assinatura.
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/cliente/planos"
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shrink-0 flex items-center gap-1.5 ${
+                        isUrgent
+                          ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                          : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Ativar Plano Definitivo
+                    </Link>
+                  </div>
+                );
+              })()}
+
               {children}
             </div>
           </main>

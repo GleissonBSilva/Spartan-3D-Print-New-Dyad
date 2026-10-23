@@ -57,6 +57,41 @@ Acesse seu painel e comece a configurar suas impressoras e filamentos:
 Se precisar de qualquer ajuda para configurar sua farm, calcular suas peças ou relatar algum ajuste, é só responder por aqui! 🦾`;
 }
 
+/**
+ * Mensagem de alerta de período de teste grátis quase encerrando
+ */
+export function formatTrialEndingWhatsAppMessage(clientName: string, companyName: string, daysLeft: number): string {
+  const nome = clientName?.trim() || 'Amigo(a)';
+  const farm = companyName?.trim() || 'sua Farm 3D';
+  const tempoTexto = daysLeft <= 1 ? 'encerra amanhã' : `encerra em ${daysLeft} dias`;
+
+  return `Olá, ${nome}! 🚀
+Notamos que o seu período de teste grátis de 14 dias para a farm *${farm}* ${tempoTexto}.
+
+Para manter suas impressoras, filamentos e histórico de projetos 100% ativos sem qualquer interrupção, você já pode ativar sua assinatura definitiva no link:
+🔗 https://spartan-3dprint.vercel.app/cliente/planos
+
+Se precisar de auxílio com a forma de pagamento (Pix) ou dúvidas técnicas, é só responder por aqui! 🦾`;
+}
+
+/**
+ * Mensagem de cobrança / lembrete de vencimento da fatura do mês corrente
+ */
+export function formatInvoiceDueWhatsAppMessage(clientName: string, companyName: string, amount: number, dueDate: string): string {
+  const nome = clientName?.trim() || 'Amigo(a)';
+  const farm = companyName?.trim() || 'sua Farm 3D';
+  const dataFormatada = dueDate ? new Date(`${dueDate}T00:00:00`).toLocaleDateString('pt-BR') : 'breve';
+  const valorTexto = amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+  return `Olá, ${nome}! 📄
+Lembramos que a mensalidade da farm *${farm}* vence em *${dataFormatada}*, no valor de *R$ ${valorTexto}*.
+
+Você pode visualizar e pagar via Pix no seu painel:
+🔗 https://spartan-3dprint.vercel.app/cliente/faturas
+
+Ou, se preferir, responda a esta mensagem que geramos a chave Pix imediata para você! 🦾`;
+}
+
 export interface SendWelcomeWhatsAppParams {
   phone: string;
   companyName: string;

@@ -47,6 +47,9 @@ export interface SaaSDataContextType {
   updatePlan: (planId: string, changes: Partial<Pick<Plan, 'priceMonthly' | 'priceYearly' | 'maxProjects' | 'maxPrinters' | 'maxFilaments' | 'maxUsers' | 'creditsAI'>>) => void;
   addClient: (client: Partial<User>) => void;
   updateClientStatus: (id: string, status: User['status']) => void;
+  updateClientValidity: (clientId: string, newDateIso: string, newStatus?: User['status']) => Promise<void>;
+  updateMultipleClientsValidity: (clientIds: string[], newDateIso: string, newStatus?: User['status']) => Promise<void>;
+  updateMultipleClientsStatus: (clientIds: string[], newStatus: User['status']) => Promise<void>;
   deleteClient: (id: string) => Promise<boolean>;
   createInvoice: (clientId: string, amount: number, method?: Invoice['method'], planId?: string) => void;
   createDirectInvoice: (params: { clientId: string; amount: number; dueDate?: string; planId?: string; method?: Invoice['method'] }) => Promise<Record<string, unknown> | null>;
@@ -126,6 +129,9 @@ export const SaaSDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     invoices,
     addClient,
     updateClientStatus,
+    updateClientValidity,
+    updateMultipleClientsValidity,
+    updateMultipleClientsStatus,
     deleteClient,
     createInvoice,
     createDirectInvoice,
@@ -226,6 +232,9 @@ export const SaaSDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updatePlan,
         addClient,
         updateClientStatus,
+        updateClientValidity,
+        updateMultipleClientsValidity,
+        updateMultipleClientsStatus,
         deleteClient,
         createInvoice,
         createDirectInvoice,

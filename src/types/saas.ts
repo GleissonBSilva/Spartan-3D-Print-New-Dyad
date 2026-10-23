@@ -15,6 +15,7 @@ export interface User {
   status: 'active' | 'trialing' | 'overdue' | 'canceled';
   mrr: number;
   joinedAt: string;
+  trialEndsAt?: string;
   aiCreditsRemaining?: number;
 }
 
