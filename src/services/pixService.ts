@@ -26,14 +26,25 @@ const DEFAULT_CONFIG_KEY_PREFIX = 'spartan_pix_config_';
 const pixConfigMemoryCache = new Map<string, PixConfig>();
 
 export const DEFAULT_PIX_CONFIG: PixConfig = {
-  chave: '',
-  tipoChave: 'telefone',
-  nomeTitular: '',
+  chave: 'gsroboticmania@gmail.com',
+  tipoChave: 'email',
+  nomeTitular: 'SPARTAN 3D',
   cidade: 'MANAUS',
 };
 
 export function getSavedPixConfig(userId?: string | null): PixConfig {
-  if (!userId) return { ...DEFAULT_PIX_CONFIG };
+  if (!userId) {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const plat = localStorage.getItem('spartan_platform_pix_config');
+        if (plat) {
+          const parsed = JSON.parse(plat);
+          if (parsed.chave) return { ...DEFAULT_PIX_CONFIG, ...parsed };
+        }
+      } catch {}
+    }
+    return { ...DEFAULT_PIX_CONFIG };
+  }
   if (pixConfigMemoryCache.has(userId)) {
     return { ...DEFAULT_PIX_CONFIG, ...pixConfigMemoryCache.get(userId)! };
   }
@@ -45,10 +56,71 @@ export function getSavedPixConfig(userId?: string | null): PixConfig {
         pixConfigMemoryCache.set(userId, parsed);
         return parsed;
       }
+      const plat = localStorage.getItem('spartan_platform_pix_config');
+      if (plat) {
+        const parsed = { ...DEFAULT_PIX_CONFIG, ...JSON.parse(plat) };
+        if (parsed.chave) return parsed;
+      }
     }
   } catch (error) {
     console.warn('Não foi possível recuperar configuração Pix salva:', error);
   }
+  return { ...DEFAULT_PIX_CONFIG };
+}
+
+/**
+ * Recupera a configuração Pix oficial da plataforma para qualquer assinante pagar faturas
+ */
+export async function getPlatformPixConfig(): Promise<PixConfig> {
+  // 1. Tenta carregar do cache local
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('spartan_platform_pix_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.chave && parsed.chave.trim()) {
+          return { ...DEFAULT_PIX_CONFIG, ...parsed };
+        }
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('spartan_pix_config_')) {
+          const val = JSON.parse(localStorage.getItem(key) || '{}');
+          if (val.chave && val.chave.trim()) {
+            return { ...DEFAULT_PIX_CONFIG, ...val };
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2. Busca do Supabase via RPC segura
+  try {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('spartan_get_platform_pix_config');
+      if (!error && data && typeof data === 'object') {
+        const obj = data as Record<string, unknown>;
+        const chave = String(obj.chave || '').trim();
+        if (chave) {
+          const cfg: PixConfig = {
+            chave,
+            tipoChave: (obj.tipoChave as PixConfig['tipoChave']) || 'email',
+            nomeTitular: String(obj.nomeTitular || 'SPARTAN 3D').trim(),
+            cidade: String(obj.cidade || 'MANAUS').trim(),
+          };
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('spartan_platform_pix_config', JSON.stringify(cfg));
+          }
+          return cfg;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao obter chave Pix da plataforma do Supabase:', err);
+  }
+
   return { ...DEFAULT_PIX_CONFIG };
 }
 
@@ -109,6 +181,7 @@ export async function savePixConfig(config: PixConfig, userId?: string | null): 
 
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(`${DEFAULT_CONFIG_KEY_PREFIX}${userId}`, JSON.stringify(config));
+      localStorage.setItem('spartan_platform_pix_config', JSON.stringify(config));
     }
 
     if (typeof window !== 'undefined') {

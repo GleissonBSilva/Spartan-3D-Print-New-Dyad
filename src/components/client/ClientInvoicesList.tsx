@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import {
   PixConfig,
   getSavedPixConfig,
+  getPlatformPixConfig,
   generatePixPayload,
   getPixQrCodeUrl,
 } from '@/services/pixService';
@@ -34,48 +35,20 @@ export const ClientInvoicesList: React.FC<ClientInvoicesListProps> = ({
   } | null>(null);
 
   // Recupera a configuração Pix salva da plataforma / administrador
-  const [pixConfig, setPixConfig] = useState<PixConfig>(() => {
-    if (typeof localStorage !== 'undefined') {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('spartan_pix_config_')) {
-          try {
-            const val = JSON.parse(localStorage.getItem(key) || '{}');
-            if (val.chave && val.chave.trim()) return val;
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }
-    const userCfg = getSavedPixConfig(user?.id);
-    if (userCfg.chave) return userCfg;
-    return {
-      chave: 'spartan3d@farm.com.br',
-      tipoChave: 'email',
-      nomeTitular: 'Spartan 3D Farm',
-      cidade: 'MANAUS',
-    };
-  });
+  const [pixConfig, setPixConfig] = useState<PixConfig>(() => getSavedPixConfig(user?.id));
 
   useEffect(() => {
-    const handleUpdate = () => {
-      if (typeof localStorage !== 'undefined') {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('spartan_pix_config_')) {
-            try {
-              const val = JSON.parse(localStorage.getItem(key) || '{}');
-              if (val.chave && val.chave.trim()) {
-                setPixConfig(val);
-                return;
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
+    // 1. Carrega a chave oficial da plataforma registrada pelo Administrador
+    void getPlatformPixConfig().then(cfg => {
+      if (cfg && cfg.chave) {
+        setPixConfig(cfg);
       }
+    });
+
+    const handleUpdate = () => {
+      void getPlatformPixConfig().then(cfg => {
+        if (cfg && cfg.chave) setPixConfig(cfg);
+      });
     };
 
     window.addEventListener('spartan_pix_config_updated', handleUpdate);
@@ -85,7 +58,7 @@ export const ClientInvoicesList: React.FC<ClientInvoicesListProps> = ({
   const handleViewPix = (inv: Invoice) => {
     const payload = generatePixPayload({
       chave: pixConfig.chave,
-      nomeTitular: pixConfig.nomeTitular || 'Spartan 3D Farm',
+      nomeTitular: pixConfig.nomeTitular || 'SPARTAN 3D',
       cidade: pixConfig.cidade || 'MANAUS',
       valor: inv.amount,
       txId: inv.id.replace(/-/g, '').slice(0, 20),
@@ -231,7 +204,7 @@ export const ClientInvoicesList: React.FC<ClientInvoicesListProps> = ({
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
-                {pixConfig.nomeTitular || 'Spartan 3D Farm'}
+                {pixConfig.nomeTitular || 'SPARTAN 3D'}
               </span>
             </div>
 

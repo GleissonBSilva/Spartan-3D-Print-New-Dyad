@@ -3,6 +3,7 @@ import {
   generatePixPayload,
   calculateCRC16,
   getSavedPixConfig,
+  getPlatformPixConfig,
   savePixConfig,
   normalizePixKey,
   DEFAULT_PIX_CONFIG,
@@ -73,5 +74,11 @@ describe('pixService', () => {
     expect(loaded.chave).toBe('92993746740');
     expect(loaded.nomeTitular).toBe('GLEISSON SILVA');
     expect(loaded.cidade).toBe('MANAUS');
+  });
+
+  it('retrieves platform Pix config with real owner defaults (never fake emails)', async () => {
+    const platformConfig = await getPlatformPixConfig();
+    expect(platformConfig.chave).not.toBe('spartan3d@farm.com.br');
+    expect(platformConfig.chave).toBe('gsroboticmania@gmail.com');
   });
 });
