@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import {
   Plus, QrCode, CheckCircle2, Clock, User, Lock, Unlock, Ban, Trash2,
   AlertTriangle, Loader2, MessageCircle, Calendar, X, CheckSquare, Search,
-  RotateCcw, SlidersHorizontal
+  RotateCcw, SlidersHorizontal, Download
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { User as SaaSUser } from '@/types/saas';
 import { normalizeWhatsAppPhone, formatTrialEndingWhatsAppMessage, formatInvoiceDueWhatsAppMessage } from '@/services/whatsappService';
@@ -278,6 +279,48 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
     }
   };
 
+  const handleExportCsv = () => {
+    if (filteredClients.length === 0) {
+      toast.error('Nenhum cliente disponível para exportação com os filtros atuais.');
+      return;
+    }
+
+    const headers = ['ID', 'Nome', 'Empresa / Farm', 'E-mail', 'WhatsApp', 'Plano', 'MRR (R$)', 'Status', 'Data Cadastro', 'Vigência / Validade'];
+    const rows = filteredClients.map(c => {
+      const vDate = getClientValidityDate(c);
+      const vDateFormatted = vDate ? vDate.toLocaleDateString('pt-BR') : 'Padrão (14d)';
+      const joinedFormatted = c.joinedAt ? new Date(c.joinedAt).toLocaleDateString('pt-BR') : '';
+      const planName = c.planId === 'plan_enterprise' ? 'Enterprise VIP' : c.planId === 'plan_starter' ? 'Starter Booster' : 'Pro Scaler';
+
+      return [
+        `"${c.id}"`,
+        `"${(c.name || '').replace(/"/g, '""')}"`,
+        `"${(c.companyName || '').replace(/"/g, '""')}"`,
+        `"${(c.email || '').replace(/"/g, '""')}"`,
+        `"${(c.companyPhone || '').replace(/"/g, '""')}"`,
+        `"${planName}"`,
+        `"${c.mrr || 0}"`,
+        `"${c.status}"`,
+        `"${joinedFormatted}"`,
+        `"${vDateFormatted}"`,
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const now = new Date();
+    const dateStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    link.setAttribute('download', `clientes_spartan3d_${dateStamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`${filteredClients.length} cliente(s) exportado(s) para CSV com sucesso!`);
+  };
+
   return (
     <>
       {/* Central de Vencimentos & Notificações para o Administrador */}
@@ -410,6 +453,16 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              onClick={handleExportCsv}
+              size="sm"
+              variant="outline"
+              className="border-slate-700 bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl text-xs font-medium"
+              title="Exportar lista filtrada para planilha CSV"
+            >
+              <Download className="w-4 h-4 mr-1 text-slate-400" />
+              Exportar CSV
+            </Button>
             <Button
               onClick={onOpenNewClientModal}
               size="sm"
@@ -686,17 +739,17 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                       className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-600 focus:ring-cyan-500 cursor-pointer accent-cyan-500"
                     />
                   </th>
-                  <th className="py-3 px-4">Cliente / Empresa</th>
-                  <th className="py-3 px-3">Plano</th>
-                  <th className="py-3 px-3">MRR</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3">Início / Validade</th>
+                  <th className="py-3 px-4">Cliente & Contato</th>
+                  <th className="py-3 px-3">Plano & MRR</th>
+                  <th className="py-3 px-3">Status & Vigência</th>
                   <th className="py-3 px-4 text-right">Ações Rápidas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filteredClients.map(client => {
                   const isSelected = selectedClientIds.includes(client.id);
+                  const vDate = getClientValidityDate(client);
+                  const vDateFormatted = vDate ? vDate.toLocaleDateString('pt-BR') : null;
 
                   return (
                     <tr
@@ -705,7 +758,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         isSelected ? 'bg-indigo-950/25' : ''
                       }`}
                     >
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center align-middle">
                         <input
                           type="checkbox"
                           aria-label={`Selecionar ${client.name}`}
@@ -720,16 +773,23 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                             <img
                               src={client.avatar}
                               alt={client.name}
-                              className="w-8 h-8 rounded-full object-cover shrink-0"
+                              className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-slate-700"
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 shrink-0 ring-1 ring-slate-700">
                               <User className="w-4 h-4" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="font-bold text-white text-sm">{client.name}</p>
-                            <p className="text-[11px] text-slate-400">
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-white text-sm truncate">{client.name}</p>
+                              {client.joinedAt && (
+                                <span className="text-[10px] text-slate-500 font-normal shrink-0">
+                                  desde {new Date(client.joinedAt).toLocaleDateString('pt-BR')}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 truncate">
                               {client.companyName ? `${client.companyName} • ${client.email}` : client.email}
                             </p>
                             {client.companyPhone && (
@@ -750,52 +810,64 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                         </div>
                       </td>
                       <td className="py-3 px-3">
-                        <Badge variant="outline" className="border-indigo-500/40 text-indigo-300 bg-indigo-500/10">
+                        <Badge variant="outline" className="border-indigo-500/40 text-indigo-300 bg-indigo-500/10 font-semibold text-[11px]">
                           {client.planId === 'plan_enterprise'
                             ? 'Enterprise VIP'
                             : client.planId === 'plan_starter'
                             ? 'Starter Booster'
                             : 'Pro Scaler'}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-3 font-bold text-white">
-                        R$ {client.mrr}/mês
+                        <p className="text-white font-bold text-xs mt-1">
+                          R$ {client.mrr || 0}
+                          <span className="text-[10px] text-slate-400 font-normal ml-0.5">/mês</span>
+                        </p>
                       </td>
                       <td className="py-3 px-3">
-                        {client.status === 'active' && (
-                          <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
-                            <CheckCircle2 className="w-3 h-3" /> Ativo
-                          </span>
-                        )}
                         {client.status === 'trialing' && (() => {
-                          const vDate = getClientValidityDate(client);
                           const trialEndMs = vDate ? vDate.getTime() : Date.now();
                           const remainingDays = Math.max(0, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
                           return (
-                            <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
-                              <Clock className="w-3 h-3" /> Teste Grátis ({remainingDays}d restantes)
-                            </span>
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
+                                <Clock className="w-3 h-3" /> Teste Grátis ({remainingDays}d restantes)
+                              </span>
+                              <p className="text-[11px] text-slate-400">
+                                Término em <strong className="text-white">{vDateFormatted || '—'}</strong>
+                              </p>
+                            </div>
                           );
                         })()}
+                        {client.status === 'active' && (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
+                              <CheckCircle2 className="w-3 h-3" /> Ativo
+                            </span>
+                            <p className="text-[11px] text-slate-400">
+                              {vDateFormatted ? (
+                                <>Válido até <strong className="text-white">{vDateFormatted}</strong></>
+                              ) : (
+                                'Renovação contínua'
+                              )}
+                            </p>
+                          </div>
+                        )}
                         {client.status === 'overdue' && (
-                          <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-bold text-[11px]">
-                            <Lock className="w-3 h-3 text-rose-400" /> Atrasado (Bloqueado)
-                          </span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-bold text-[11px]">
+                              <Lock className="w-3 h-3 text-rose-400" /> Atrasado (Bloqueado)
+                            </span>
+                            <p className="text-[11px] text-rose-300/80">
+                              Venceu em <strong className="text-rose-200">{vDateFormatted || '—'}</strong>
+                            </p>
+                          </div>
                         )}
                         {client.status === 'canceled' && (
-                          <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
-                            <Ban className="w-3 h-3" /> Cancelado
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-slate-400">
-                        <p className="text-white font-medium">{client.joinedAt ? new Date(client.joinedAt).toLocaleDateString('pt-BR') : '—'}</p>
-                        {client.trialEndsAt ? (
-                          <span className="inline-block mt-0.5 text-[10px] font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5 rounded">
-                            Até {new Date(client.trialEndsAt).toLocaleDateString('pt-BR')}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 italic block">Padrão</span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full font-semibold text-[11px]">
+                              <Ban className="w-3 h-3" /> Cancelado
+                            </span>
+                            <p className="text-[11px] text-slate-500">Acesso encerrado</p>
+                          </div>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
@@ -803,18 +875,18 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                           size="sm"
                           variant="ghost"
                           onClick={() => handleOpenValidityModal(client)}
-                          className="h-7 px-2 text-[11px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg border border-cyan-500/30 font-medium"
-                          title="Definir dia, mês e ano de vigência / vencimento"
+                          className="h-7 px-2.5 text-[11px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg border border-cyan-500/30 font-medium"
+                          title="Definir dia, mês e ano de vigência / renovação"
                         >
                           <Calendar className="w-3 h-3 mr-1 text-cyan-400" />
-                          Validade
+                          Vigência
                         </Button>
 
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => createInvoice(client.id, plans.find(plan => plan.id === client.planId)?.priceMonthly || 0, 'pix')}
-                          className="h-7 px-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg"
+                          className="h-7 px-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg border border-slate-700"
                           title="Gerar cobrança Pix para o cliente"
                         >
                           <QrCode className="w-3 h-3 mr-1" />
@@ -890,7 +962,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
 
                 {filteredClients.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
                       <div className="max-w-xs mx-auto space-y-2">
                         <p className="font-semibold text-slate-300 text-sm">Nenhum cliente encontrado</p>
                         <p className="text-xs text-slate-500">
@@ -1013,7 +1085,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Controle de Validade & Vencimento
+                    Controle de Vigência & Vencimento
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Defina o dia, mês e ano exatos para a expiração ou renovação do plano.
@@ -1045,7 +1117,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
             <form onSubmit={handleSaveValidity} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Data de Validade (Dia / Mês / Ano)
+                  Data Limite de Vigência (Dia / Mês / Ano)
                 </label>
                 <Input
                   type="date"
@@ -1182,7 +1254,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
                     Definir Vigência em Lote
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Aplicando validade a <strong className="text-cyan-400">{selectedClientIds.length}</strong> cliente{selectedClientIds.length > 1 ? 's' : ''} selecionado{selectedClientIds.length > 1 ? 's' : ''}.
+                    Aplicando nova vigência a <strong className="text-cyan-400">{selectedClientIds.length}</strong> cliente{selectedClientIds.length > 1 ? 's' : ''} selecionado{selectedClientIds.length > 1 ? 's' : ''}.
                   </p>
                 </div>
               </div>
@@ -1198,7 +1270,7 @@ export const AdminClientsTable: React.FC<AdminClientsTableProps> = ({ onOpenNewC
             <form onSubmit={handleSaveBulkValidity} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Nova Data de Validade (Dia / Mês / Ano)
+                  Nova Data de Vigência (Dia / Mês / Ano)
                 </label>
                 <Input
                   type="date"

@@ -4,11 +4,11 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
@@ -104,3 +104,115 @@
     text-rendering: optimizeLegibility;
   }
 }
+
+/* ========================================================
+   TEMA ROSA FLOR DE SAKURA (Edição Feminina de Alta Nitidez)
+   Estética suave e sofisticada inspirada na Flor de Cerejeira (Sakura),
+   com excelente nitidez e alto contraste de botões e textos.
+   ======================================================== */
+html.theme-sakura,
+.theme-sakura {
+  --background: 300 45% 7%;
+  --foreground: 320 60% 98%;
+  --card: 300 35% 10%;
+  --card-foreground: 320 60% 98%;
+  --primary: 330 85% 60%;
+  --primary-foreground: 0 0% 100%;
+  --border: 300 30% 22%;
+  --ring: 330 85% 65%;
+}
+
+.theme-sakura body {
+  background-color: #120914 !important;
+  color: #fdf2f8 !important;
+}
+
+/* Fundos escuros no estilo Sakura Dark */
+.theme-sakura .bg-slate-950 {
+  background-color: #120914 !important;
+}
+
+.theme-sakura .bg-slate-900 {
+  background-color: #1c0e20 !important;
+}
+
+.theme-sakura .bg-slate-900\/95,
+.theme-sakura .bg-slate-900\/90,
+.theme-sakura .bg-slate-900\/80,
+.theme-sakura .bg-slate-900\/60 {
+  background-color: rgba(28, 14, 32, 0.95) !important;
+}
+
+.theme-sakura .bg-slate-800 {
+  background-color: #2b1430 !important;
+}
+
+.theme-sakura .bg-slate-800\/60,
+.theme-sakura .bg-slate-800\/40,
+.theme-sakura .bg-slate-800\/30 {
+  background-color: rgba(43, 20, 48, 0.6) !important;
+}
+
+/* Bordas estilizadas Sakura */
+.theme-sakura .border-slate-800,
+.theme-sakura .border-slate-800\/80,
+.theme-sakura .border-slate-800\/60 {
+  border-color: #421d47 !important;
+}
+
+.theme-sakura .border-slate-700 {
+  border-color: #5d2563 !important;
+}
+
+/* Botões primários Sakura (Rosa Flor de Cerejeira vibrante com alta nitidez) */
+.theme-sakura .bg-indigo-600 {
+  background-color: #ec4899 !important; /* pink-500 sakura */
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.35);
+}
+
+.theme-sakura .bg-indigo-600:hover,
+.theme-sakura .hover\:bg-indigo-500:hover {
+  background-color: #db2777 !important; /* pink-600 hover */
+  color: #ffffff !important;
+}
+
+/* Elementos temáticos em tom Rosa Sakura */
+.theme-sakura .text-indigo-400 {
+  color: #f472b6 !important; /* pink-400 */
+}
+
+.theme-sakura .text-indigo-300 {
+  color: #fbcfe8 !important; /* pink-200 */
+}
+
+.theme-sakura .border-indigo-500,
+.theme-sakura .border-indigo-500\/50,
+.theme-sakura .border-indigo-500\/40,
+.theme-sakura .border-indigo-500\/30 {
+  border-color: rgba(244, 114, 182, 0.45) !important;
+}
+
+.theme-sakura .bg-indigo-500\/20,
+.theme-sakura .bg-indigo-500\/15,
+.theme-sakura .bg-indigo-500\/10 {
+  background-color: rgba(236, 72, 153, 0.16) !important;
+}
+
+/* Destaques de textos e legendas para nitidez cristalina */
+.theme-sakura .text-slate-400 {
+  color: #e4b6d7 !important; /* Rosa claro legível e nítido */
+}
+
+.theme-sakura .text-slate-300 {
+  color: #fdf2f8 !important; /* Branco perolado / sakura highlight */
+}
+
+.theme-sakura .text-slate-500 {
+  color: #c993bc !important;
+}
+
+.theme-sakura .accent-indigo-500 {
+  accent-color: #ec4899 !important;
+}
+

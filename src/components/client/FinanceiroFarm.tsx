@@ -357,72 +357,122 @@ export const FinanceiroFarm: React.FC = () => {
         </div>
       </Card>
 
-      {/* Cards de Métricas Principais */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Cards de Métricas Principais com Design Executivo */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Receita Concluída */}
-        <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>Faturamento Realizado</span>
-            <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
-              <TrendingUp className="w-4 h-4" />
-            </span>
+        <Card className="bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-lg hover:border-emerald-500/50 transition-all">
+          <div className="p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs uppercase tracking-wider">
+                <TrendingUp className="w-4 h-4" />
+                <span>Faturamento Realizado</span>
+              </div>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                {financialMetrics.completedCount} peças
+              </Badge>
+            </div>
+            <div>
+              <p className="text-2xl lg:text-3xl font-black text-white">
+                {formatMoney(financialMetrics.totalReceitaConcluida)}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Total bruto cobrado de pedidos entregues
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Projetos Faturados:</span>
+              <span className="font-semibold text-emerald-400">
+                100% finalizados
+              </span>
+            </div>
           </div>
-          <p className="text-2xl font-black text-white mt-2">
-            {formatMoney(financialMetrics.totalReceitaConcluida)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            {financialMetrics.completedCount} projeto(s) concluído(s)
-          </p>
         </Card>
 
         {/* Custos Operacionais */}
-        <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>Custos Operacionais</span>
-            <span className="p-2 bg-rose-500/10 text-rose-400 rounded-xl">
-              <TrendingDown className="w-4 h-4" />
-            </span>
+        <Card className="bg-slate-900 border border-rose-500/30 rounded-2xl shadow-lg hover:border-rose-500/50 transition-all">
+          <div className="p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-xs uppercase tracking-wider">
+                <TrendingDown className="w-4 h-4" />
+                <span>Custos Operacionais</span>
+              </div>
+              <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px] font-bold">
+                Produção Real
+              </Badge>
+            </div>
+            <div>
+              <p className="text-2xl lg:text-3xl font-black text-rose-400">
+                {formatMoney(financialMetrics.totalCustosConcluidos)}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Material, luz, desgaste de bico e insumos
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Despesas Totais:</span>
+              <span className="font-semibold text-rose-400">
+                {formatMoney(financialMetrics.totalCustosConcluidos)}
+              </span>
+            </div>
           </div>
-          <p className="text-2xl font-black text-rose-300 mt-2">
-            {formatMoney(financialMetrics.totalCustosConcluidos)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Material, luz, desgaste e insumos
-          </p>
         </Card>
 
         {/* Lucro Líquido Real */}
-        <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>Lucro Líquido Real</span>
-            <span className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl">
-              <DollarSign className="w-4 h-4" />
-            </span>
+        <Card className="bg-slate-900 border border-indigo-500/30 rounded-2xl shadow-lg hover:border-indigo-500/50 transition-all">
+          <div className="p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
+                <DollarSign className="w-4 h-4" />
+                <span>Lucro Líquido Real</span>
+              </div>
+              <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px] font-bold">
+                {financialMetrics.margemMediaPercent.toFixed(1)}% Margem
+              </Badge>
+            </div>
+            <div>
+              <p className={`text-2xl lg:text-3xl font-black ${financialMetrics.totalLucroLiquido >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatMoney(financialMetrics.totalLucroLiquido)}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Dinheiro livre de custos no bolso
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Rentabilidade Média:</span>
+              <span className="font-semibold text-emerald-400">
+                {financialMetrics.margemMediaPercent.toFixed(0)}% de margem
+              </span>
+            </div>
           </div>
-          <p className={`text-2xl font-black mt-2 ${financialMetrics.totalLucroLiquido >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {formatMoney(financialMetrics.totalLucroLiquido)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-            <Percent className="w-3 h-3 text-indigo-400" />
-            Margem real: <strong className="text-white">{financialMetrics.margemMediaPercent.toFixed(1)}%</strong>
-          </p>
         </Card>
 
         {/* A Receber / Em Produção */}
-        <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>A Receber / Em Produção</span>
-            <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
-              <Clock3 className="w-4 h-4" />
-            </span>
+        <Card className="bg-slate-900 border border-amber-500/30 rounded-2xl shadow-lg hover:border-amber-500/50 transition-all">
+          <div className="p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs uppercase tracking-wider">
+                <Clock className="w-4 h-4" />
+                <span>A Receber / Em Curso</span>
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                {financialMetrics.pendingCount} em aberto
+              </Badge>
+            </div>
+            <div>
+              <p className="text-2xl lg:text-3xl font-black text-amber-400">
+                {formatMoney(financialMetrics.receitaEmAndamento)}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Lucro previsto: <strong className="text-slate-200">{formatMoney(financialMetrics.lucroPrevistoEmAndamento)}</strong>
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Status dos Pedidos:</span>
+              <span className="font-semibold text-amber-300">
+                Em fila ou impressão
+              </span>
+            </div>
           </div>
-          <p className="text-2xl font-black text-amber-300 mt-2">
-            {formatMoney(financialMetrics.receitaEmAndamento)}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Lucro previsto: {formatMoney(financialMetrics.lucroPrevistoEmAndamento)} ({financialMetrics.pendingCount} peça(s))
-          </p>
         </Card>
       </section>
 

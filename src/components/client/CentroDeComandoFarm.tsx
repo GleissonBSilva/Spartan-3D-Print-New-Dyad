@@ -315,95 +315,135 @@ export const CentroDeComandoFarm: React.FC = () => {
         )}
       </section>
 
-      {/* 2. PRIMEIRA DOBRA: OS 4 INDICADORES PRINCIPAIS OBJETIVOS */}
-      <section className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 2. PRIMEIRA DOBRA: OS 4 INDICADORES PRINCIPAIS OBJETIVOS COM DESIGN EXECUTIVO */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Lucro Líquido Estimado */}
         <Link to="/cliente/financeiro" className="block group">
-          <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl hover:border-emerald-500/50 transition-all group-hover:bg-slate-850/60 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Lucro Estimado</span>
-              <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <TrendingUp className="w-4 h-4" />
-              </span>
+          <Card className="bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-lg group-hover:border-emerald-500/60 transition-all">
+            <div className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs uppercase tracking-wider">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Lucro Estimado</span>
+                </div>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                  {metrics.margin.toFixed(0)}% Margem
+                </Badge>
+              </div>
+              <div>
+                <p className="text-2xl lg:text-3xl font-black text-emerald-400">
+                  {formatMoney(metrics.profit)}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Lucro líquido livre dos custos cadastrados
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Ver financeiro</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" />
+              </div>
             </div>
-            <div className="mt-2.5 flex items-baseline justify-between">
-              <p className="text-2xl font-black text-emerald-400">
-                {formatMoney(metrics.profit)}
-              </p>
-              <Badge variant="outline" className="text-[10px] font-bold border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                {metrics.margin.toFixed(0)}% margem
-              </Badge>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center justify-between">
-              <span>Após custos operacionais cadastrados</span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" />
-            </p>
           </Card>
         </Link>
 
         {/* Card 2: Faturamento Concluído */}
         <Link to="/cliente/financeiro" className="block group">
-          <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl hover:border-indigo-500/50 transition-all group-hover:bg-slate-850/60 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Faturamento Concluído</span>
-              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-                <CircleDollarSign className="w-4 h-4" />
-              </span>
+          <Card className="bg-slate-900 border border-indigo-500/30 rounded-2xl shadow-lg group-hover:border-indigo-500/60 transition-all">
+            <div className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
+                  <CircleDollarSign className="w-4 h-4" />
+                  <span>Faturamento Concluído</span>
+                </div>
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px] font-bold">
+                  {metrics.completedCount} entregues
+                </Badge>
+              </div>
+              <div>
+                <p className="text-2xl lg:text-3xl font-black text-white">
+                  {formatMoney(metrics.revenue)}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Custo total absorvido: {formatMoney(metrics.cost)}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Detalhamento contábil</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors" />
+              </div>
             </div>
-            <p className="text-2xl font-black text-white mt-2.5">
-              {formatMoney(metrics.revenue)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center justify-between">
-              <span>{metrics.completedCount} projeto(s) · Custo: {formatMoney(metrics.cost)}</span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors" />
-            </p>
           </Card>
         </Link>
 
         {/* Card 3: Impressoras Ocupadas */}
         <Link to="/cliente/impressoras" className="block group">
-          <Card className="p-4 bg-slate-900 border-slate-800 rounded-2xl hover:border-sky-500/50 transition-all group-hover:bg-slate-850/60 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Parque em Produção</span>
-              <span className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400">
-                <Cpu className="w-4 h-4" />
-              </span>
+          <Card className="bg-slate-900 border border-sky-500/30 rounded-2xl shadow-lg group-hover:border-sky-500/60 transition-all">
+            <div className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-sky-400 font-semibold text-xs uppercase tracking-wider">
+                  <Cpu className="w-4 h-4" />
+                  <span>Parque em Produção</span>
+                </div>
+                <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-[10px] font-bold">
+                  {metrics.occupancyRate}% Ocupação
+                </Badge>
+              </div>
+              <div>
+                <p className="text-2xl lg:text-3xl font-black text-white">
+                  {metrics.occupiedCount} de {metrics.totalPrinters}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {metrics.printingPrinters.length} imprimindo · {metrics.availablePrinters.length} livre(s)
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Gerenciar máquinas</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-sky-400 transition-colors" />
+              </div>
             </div>
-            <div className="mt-2.5 flex items-baseline justify-between">
-              <p className="text-2xl font-black text-white">
-                {metrics.occupiedCount} de {metrics.totalPrinters}
-              </p>
-              <span className="text-xs font-bold text-sky-400">
-                {metrics.occupancyRate}% ocupação
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center justify-between">
-              <span>
-                {metrics.printingPrinters.length} imprimindo · {metrics.availablePrinters.length} livre(s)
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-sky-400 transition-colors" />
-            </p>
           </Card>
         </Link>
 
         {/* Card 4: Pedidos em Risco & Prazos */}
         <Link to="/cliente/projetos" className="block group">
-          <Card className={`p-4 bg-slate-900 border-slate-800 rounded-2xl transition-all group-hover:bg-slate-850/60 relative overflow-hidden ${metrics.overdueProjects.length > 0 ? 'border-rose-500/40 hover:border-rose-500' : 'hover:border-amber-500/50'}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Prazos & Pedidos</span>
-              <span className={`p-1.5 rounded-lg ${metrics.overdueProjects.length > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                <Clock3 className="w-4 h-4" />
-              </span>
+          <Card className={`bg-slate-900 rounded-2xl shadow-lg transition-all border ${
+            metrics.overdueProjects.length > 0
+              ? 'border-rose-500/40 group-hover:border-rose-500/70'
+              : 'border-amber-500/30 group-hover:border-amber-500/60'
+          }`}>
+            <div className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className={`flex items-center gap-1.5 font-semibold text-xs uppercase tracking-wider ${
+                  metrics.overdueProjects.length > 0 ? 'text-rose-400' : 'text-amber-400'
+                }`}>
+                  <Clock3 className="w-4 h-4" />
+                  <span>Prazos & Pedidos</span>
+                </div>
+                <Badge className={`text-[10px] font-bold ${
+                  metrics.overdueProjects.length > 0
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                }`}>
+                  {metrics.overdueProjects.length > 0 ? 'Atrasos Ativos' : 'Prazos em Dia'}
+                </Badge>
+              </div>
+              <div>
+                <p className={`text-2xl lg:text-3xl font-black ${
+                  metrics.overdueProjects.length > 0 ? 'text-rose-400' : 'text-emerald-400'
+                }`}>
+                  {metrics.overdueProjects.length > 0 ? `${metrics.overdueProjects.length} atrasado(s)` : '0 atrasos'}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {metrics.upcomingDeadlines.length > 0
+                    ? `${metrics.upcomingDeadlines.length} entrega(s) nos próximos 3 dias`
+                    : 'Fila de pedidos sem risco de estouro de prazo'}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Ver pedidos e fila</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              </div>
             </div>
-            <p className={`text-2xl font-black mt-2.5 ${metrics.overdueProjects.length > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-              {metrics.overdueProjects.length > 0 ? `${metrics.overdueProjects.length} atrasado(s)` : '0 atrasados'}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center justify-between">
-              <span>
-                {metrics.upcomingDeadlines.length > 0 ? `${metrics.upcomingDeadlines.length} entrega(s) em 3 dias` : 'Prazos da farm em dia'}
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
-            </p>
           </Card>
         </Link>
       </section>

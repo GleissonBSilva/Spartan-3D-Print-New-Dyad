@@ -434,10 +434,38 @@ export const ParqueImpressoras: React.FC = () => {
     </header>
 
     <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      <SummaryCard label="Ativas" value={counts.active} tone="emerald" icon={CirclePower} />
-      <SummaryCard label="Pausadas" value={counts.paused} tone="amber" icon={Pause} />
-      <SummaryCard label="Offline" value={counts.offline} tone="rose" icon={CirclePower} />
-      <SummaryCard label="Manutenção" value={counts.maintenance} tone="orange" icon={Wrench} />
+      <SummaryCard 
+        label="Ativas" 
+        value={counts.active} 
+        tone="emerald" 
+        icon={CirclePower} 
+        badge={counts.active > 0 ? "Em operação" : "Paradas"}
+        detail="Disponíveis e imprimindo"
+      />
+      <SummaryCard 
+        label="Pausadas" 
+        value={counts.paused} 
+        tone="amber" 
+        icon={Pause} 
+        badge={counts.paused > 0 ? "Interrompidas" : "Nenhuma pausa"}
+        detail="Aguardando retomada manual"
+      />
+      <SummaryCard 
+        label="Offline" 
+        value={counts.offline} 
+        tone="rose" 
+        icon={CirclePower} 
+        badge={counts.offline > 0 ? "Desconectadas" : "Rede 100% online"}
+        detail="Sem sinal ou desligadas"
+      />
+      <SummaryCard 
+        label="Manutenção" 
+        value={counts.maintenance} 
+        tone="orange" 
+        icon={Wrench} 
+        badge={counts.maintenance > 0 ? "Revisão pendente" : "Parque calibrado"}
+        detail="Preventiva e calibração de bico"
+      />
     </section>
 
     {showAddForm && <Card className="rounded-2xl border-slate-800 bg-slate-900 p-5">
@@ -667,8 +695,66 @@ export const ParqueImpressoras: React.FC = () => {
   </div>;
 };
 
-const SummaryCard: React.FC<{ label: string; value: number; tone: 'emerald' | 'amber' | 'rose' | 'orange'; icon: typeof Cpu }> = ({ label, value, tone, icon: Icon }) => {
-  const colors = { emerald: 'text-emerald-400 bg-emerald-500/10', amber: 'text-amber-400 bg-amber-500/10', rose: 'text-rose-400 bg-rose-500/10', orange: 'text-orange-400 bg-orange-500/10' };
-  return <Card className="rounded-2xl border-slate-800 bg-slate-900 p-4"><div className="flex items-center justify-between"><span className="text-sm text-slate-400">{label}</span><span className={`rounded-lg p-2 ${colors[tone]}`}><Icon className="h-4 w-4" /></span></div><p className="mt-2 text-2xl font-black text-white">{value}</p></Card>;
+interface SummaryCardProps {
+  label: string;
+  value: number;
+  tone: 'emerald' | 'amber' | 'rose' | 'orange';
+  icon: typeof Cpu;
+  badge?: string;
+  detail?: string;
+}
+
+const SummaryCard: React.FC<SummaryCardProps> = ({ label, value, tone, icon: Icon, badge, detail }) => {
+  const toneMap = {
+    emerald: {
+      border: 'border-emerald-500/30 hover:border-emerald-500/60',
+      iconBox: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+    },
+    amber: {
+      border: 'border-amber-500/30 hover:border-amber-500/60',
+      iconBox: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+      badge: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    },
+    rose: {
+      border: 'border-rose-500/30 hover:border-rose-500/60',
+      iconBox: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
+      badge: 'bg-rose-500/10 border-rose-500/30 text-rose-300',
+    },
+    orange: {
+      border: 'border-orange-500/30 hover:border-orange-500/60',
+      iconBox: 'bg-orange-500/10 border-orange-500/20 text-orange-400',
+      badge: 'bg-orange-500/10 border-orange-500/30 text-orange-300',
+    },
+  };
+  const theme = toneMap[tone];
+
+  return (
+    <Card className={`bg-slate-900 border ${theme.border} rounded-2xl shadow-lg transition-all`}>
+      <div className="p-5 flex flex-col justify-between h-full space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`p-1.5 rounded-lg border ${theme.iconBox}`}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label}</span>
+          </div>
+          {badge && (
+            <Badge className={`${theme.badge} text-[10px] px-2 py-0.5 font-bold`}>
+              {badge}
+            </Badge>
+          )}
+        </div>
+        <div>
+          <p className="text-2xl lg:text-3xl font-black text-white tracking-tight">{value}</p>
+        </div>
+        {detail && (
+          <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>{detail}</span>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
 };
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => <label className="block space-y-1 text-xs text-slate-300">{label}{children}</label>;

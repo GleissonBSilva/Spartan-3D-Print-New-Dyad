@@ -24,6 +24,10 @@ import {
   TrendingUp,
   Receipt,
   Sparkles,
+  Download,
+  Printer,
+  RotateCcw,
+  MessageCircle,
 } from 'lucide-react';
 import { useSaaSData } from '@/context/SaaSDataContext';
 import { useAuth } from '@/context/AuthContext';
@@ -104,13 +108,40 @@ export const AdminFinancialArea: React.FC = () => {
   // Filtros e busca
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid' | 'failed'>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal de Recibo / Comprovante
+  const [receiptModalInvoice, setReceiptModalInvoice] = useState<Invoice | null>(null);
+  const [copiedReceipt, setCopiedReceipt] = useState(false);
+
+  // Anos disponíveis para filtro de faturas
+  const availableInvoiceYears = useMemo(() => {
+    const years = new Set<string>();
+    const currentYear = new Date().getFullYear();
+    years.add((currentYear - 1).toString());
+    years.add(currentYear.toString());
+    years.add((currentYear + 1).toString());
+
+    invoices.forEach(inv => {
+      if (inv.dueDate) {
+        const y = new Date(inv.dueDate).getFullYear();
+        if (!isNaN(y)) years.add(y.toString());
+      }
+      if (inv.paidAt) {
+        const y = new Date(inv.paidAt).getFullYear();
+        if (!isNaN(y)) years.add(y.toString());
+      }
+    });
+
+    return Array.from(years).sort();
+  }, [invoices]);
 
   // Cálculos de KPIs Financeiros
   const kpis = useMemo(() => {
-    const totalPaid = invoices
-      .filter(inv => inv.status === 'paid')
-      .reduce((sum, inv) => sum + inv.amount, 0);
+    const paidInvoices = invoices.filter(inv => inv.status === 'paid');
+    const totalPaid = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
 
     const pendingInvoices = invoices.filter(inv => inv.status === 'pending');
     const totalPending = pendingInvoices.reduce((sum, inv) => sum + inv.amount, 0);
@@ -121,9 +152,12 @@ export const AdminFinancialArea: React.FC = () => {
     const pixInvoices = invoices.filter(inv => inv.method === 'pix');
     const pixPaid = pixInvoices.filter(inv => inv.status === 'paid').length;
     const pixConversion = pixInvoices.length > 0 ? Math.round((pixPaid / pixInvoices.length) * 100) : 100;
+    const liquidationRate = invoices.length > 0 ? Math.round((paidInvoices.length / invoices.length) * 100) : 100;
 
     return {
       totalPaid,
+      paidCount: paidInvoices.length,
+      liquidationRate,
       totalPending,
       pendingCount: pendingInvoices.length,
       overdueClientsCount: overdueClients.length,
@@ -140,9 +174,79 @@ export const AdminFinancialArea: React.FC = () => {
       const matchSearch =
         inv.id.toLowerCase().includes(search.toLowerCase()) ||
         inv.clientName.toLowerCase().includes(search.toLowerCase());
-      return matchStatus && matchSearch;
+
+      if (!matchStatus || !matchSearch) return false;
+
+      const dateToFilter = inv.paidAt ? new Date(inv.paidAt) : (inv.dueDate ? new Date(inv.dueDate) : null);
+
+      if (filterYear !== 'all') {
+        if (!dateToFilter || dateToFilter.getFullYear().toString() !== filterYear) return false;
+      }
+
+      if (filterMonth !== 'all') {
+        if (!dateToFilter) return false;
+        const m = String(dateToFilter.getMonth() + 1).padStart(2, '0');
+        if (m !== filterMonth) return false;
+      }
+
+      return true;
     });
-  }, [invoices, statusFilter, search]);
+  }, [invoices, statusFilter, search, filterYear, filterMonth]);
+
+  const hasActiveInvoiceFilters = statusFilter !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || search.trim() !== '';
+
+  const handleClearInvoiceFilters = () => {
+    setStatusFilter('all');
+    setFilterYear('all');
+    setFilterMonth('all');
+    setSearch('');
+  };
+
+  const handleExportInvoicesCsv = () => {
+    if (filteredInvoices.length === 0) {
+      toast.error('Nenhuma fatura disponível para exportação.');
+      return;
+    }
+
+    const headers = ['ID Fatura', 'Cliente', 'Valor (R$)', 'Forma', 'Vencimento', 'Status', 'Data Liquidacao'];
+    const rows = filteredInvoices.map(inv => {
+      const dueFormatted = inv.dueDate ? new Date(`${inv.dueDate}T00:00:00`).toLocaleDateString('pt-BR') : '';
+      const paidFormatted = inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('pt-BR') : '';
+      const statusText = inv.status === 'paid' ? 'Liquidada' : inv.status === 'pending' ? 'Pendente' : 'Cancelada';
+
+      return [
+        `"${inv.id}"`,
+        `"${(inv.clientName || '').replace(/"/g, '""')}"`,
+        `"${inv.amount.toFixed(2)}"`,
+        `"${inv.method.toUpperCase()}"`,
+        `"${dueFormatted}"`,
+        `"${statusText}"`,
+        `"${paidFormatted}"`,
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const now = new Date();
+    const dateStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    link.setAttribute('download', `faturas_spartan3d_${dateStamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`${filteredInvoices.length} fatura(s) exportada(s) para CSV com sucesso!`);
+  };
+
+  const handleCopyReceipt = (inv: Invoice) => {
+    const text = `*COMPROVANTE DE PAGAMENTO - SPARTAN 3D FARM*\n----------------------------------------\n*Fatura:* ${inv.id}\n*Cliente:* ${inv.clientName}\n*Valor:* R$ ${inv.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n*Status:* PAGO E LIQUIDADO ✅\n*Data:* ${inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}\n*Forma:* Pix\n*Recebedor:* ${pixConfig.nomeTitular || 'Spartan 3D Farm'}\n*Chave Pix:* ${pixConfig.chave || 'Não informada'}\n----------------------------------------\nObrigado pela confiança na Spartan 3D!`;
+    navigator.clipboard.writeText(text);
+    setCopiedReceipt(true);
+    toast.success('Comprovante copiado para a área de transferência!');
+    setTimeout(() => setCopiedReceipt(false), 2000);
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -289,6 +393,12 @@ export const AdminFinancialArea: React.FC = () => {
     }
   };
 
+  const handleCancelInvoice = async (invoiceId: string, invoiceCode: string) => {
+    if (window.confirm(`Tem certeza que deseja cancelar a fatura #${invoiceCode}? A cobrança será cancelada e não receberá mais pagamentos.`)) {
+      await cancelInvoice(invoiceId);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header com Ações Globais */}
@@ -339,81 +449,121 @@ export const AdminFinancialArea: React.FC = () => {
         </div>
       </div>
 
-      {/* Cards de KPIs Financeiros */}
+      {/* Cards de KPIs Financeiros com Design Executivo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800 rounded-2xl shadow-lg">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Liquidado (Pago)
-              </span>
-              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+        {/* Total Liquidado */}
+        <Card className="bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-lg hover:border-emerald-500/50 transition-all">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs uppercase tracking-wider">
                 <CheckCircle2 className="w-4 h-4" />
+                <span>Total Liquidado</span>
               </div>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                {kpis.liquidationRate}% Quitado
+              </Badge>
             </div>
-            <p className="mt-3 text-2xl font-black text-white">
-              R$ {kpis.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Receita confirmada e baixada na plataforma
-            </p>
+            <div>
+              <p className="text-2xl lg:text-3xl font-black text-white">
+                R$ {kpis.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Receita confirmada e baixada na plataforma
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Faturas Baixadas:</span>
+              <span className="font-semibold text-emerald-400">
+                {kpis.paidCount} recebimentos
+              </span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800 rounded-2xl shadow-lg">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Faturas Pendentes
-              </span>
-              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+        {/* Faturas Pendentes */}
+        <Card className="bg-slate-900 border border-amber-500/30 rounded-2xl shadow-lg hover:border-amber-500/50 transition-all">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs uppercase tracking-wider">
                 <Clock className="w-4 h-4" />
+                <span>Faturas Pendentes</span>
               </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                {kpis.pendingCount} Aguardando Pix
+              </Badge>
             </div>
-            <p className="mt-3 text-2xl font-black text-white">
-              R$ {kpis.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-            <p className="mt-1 text-[11px] text-amber-400 font-medium">
-              {kpis.pendingCount} cobrança(s) aguardando Pix
-            </p>
+            <div>
+              <p className="text-2xl lg:text-3xl font-black text-amber-400">
+                R$ {kpis.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Valores emitidos com vencimento ativo
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Previsão de Entrada:</span>
+              <span className="font-semibold text-amber-300">
+                Fluxo em aberto
+              </span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800 rounded-2xl shadow-lg">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Inadimplência Atual
-              </span>
-              <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
+        {/* Inadimplência Atual */}
+        <Card className="bg-slate-900 border border-rose-500/30 rounded-2xl shadow-lg hover:border-rose-500/50 transition-all">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-xs uppercase tracking-wider">
                 <AlertCircle className="w-4 h-4" />
+                <span>Inadimplência</span>
               </div>
+              <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px] font-bold">
+                {kpis.overdueClientsCount} Bloqueado(s)
+              </Badge>
             </div>
-            <p className="mt-3 text-2xl font-black text-white">
-              R$ {kpis.totalOverdueMRR.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-            <p className="mt-1 text-[11px] text-rose-400 font-medium">
-              {kpis.overdueClientsCount} cliente(s) com acesso bloqueado
-            </p>
+            <div>
+              <p className="text-2xl lg:text-3xl font-black text-rose-400">
+                R$ {kpis.totalOverdueMRR.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                MRR de clientes suspensos por atraso
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Status de Acesso:</span>
+              <span className="font-semibold text-rose-400">
+                Bloqueio preventivo ativo
+              </span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800 rounded-2xl shadow-lg">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Chave Pix da Farm
-              </span>
-              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+        {/* Chave Pix da Farm */}
+        <Card className="bg-slate-900 border border-indigo-500/30 rounded-2xl shadow-lg hover:border-indigo-500/50 transition-all">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
                 <QrCode className="w-4 h-4" />
+                <span>Chave Pix da Farm</span>
               </div>
+              <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px] font-bold">
+                Nuvem Ativa
+              </Badge>
             </div>
-            <p className="mt-3 text-sm font-bold text-white truncate font-mono">
-              {pixConfig.chave}
-            </p>
-            <p className="mt-1 text-[11px] text-slate-400 truncate">
-              {pixConfig.nomeTitular} • {pixConfig.cidade}
-            </p>
+            <div>
+              <p className="text-sm font-bold text-white truncate font-mono bg-slate-950/70 p-2 rounded-lg border border-slate-800">
+                {pixConfig.chave}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1 truncate">
+                Titular: <strong className="text-slate-200">{pixConfig.nomeTitular}</strong> • {pixConfig.cidade}
+              </p>
+            </div>
+            <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Conversão Pix:</span>
+              <span className="font-semibold text-emerald-400">
+                {kpis.pixConversion}% de sucesso
+              </span>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -428,49 +578,107 @@ export const AdminFinancialArea: React.FC = () => {
                 Faturas & Cobranças Pix
               </CardTitle>
               <CardDescription className="text-xs text-slate-400">
-                Histórico completo com QR Code, compartilhamento no WhatsApp e baixa manual
+                Histórico completo com QR Code, recibo digital, compartilhamento no WhatsApp e baixa manual
               </CardDescription>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-                  statusFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Todas ({invoices.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('pending')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-                  statusFilter === 'pending' ? 'bg-amber-600/80 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Pendentes ({invoices.filter(i => i.status === 'pending').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('paid')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-                  statusFilter === 'paid' ? 'bg-emerald-600/80 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Pagas ({invoices.filter(i => i.status === 'paid').length})
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                    statusFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Todas ({invoices.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('pending')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                    statusFilter === 'pending' ? 'bg-amber-600/80 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Pendentes ({invoices.filter(i => i.status === 'pending').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('paid')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                    statusFilter === 'paid' ? 'bg-emerald-600/80 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Pagas ({invoices.filter(i => i.status === 'paid').length})
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por nome do cliente ou código da fatura..."
-              className="bg-slate-950 border-slate-800 text-white pl-9 rounded-xl text-xs h-10 placeholder:text-slate-500"
-            />
+          {/* Filtros de Busca e Temporais (Ano / Mês) */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por cliente ou código da fatura..."
+                className="bg-slate-950 border-slate-800 text-white pl-9 rounded-xl text-xs h-9 placeholder:text-slate-500 w-full"
+              />
+            </div>
+
+            {/* Ano */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-[11px] text-slate-400 font-medium">Ano:</span>
+              <select
+                value={filterYear}
+                onChange={e => setFilterYear(e.target.value)}
+                className="h-9 bg-slate-950 border border-slate-800 rounded-lg px-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="all">Todos os Anos</option>
+                {availableInvoiceYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Mês */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-[11px] text-slate-400 font-medium">Mês:</span>
+              <select
+                value={filterMonth}
+                onChange={e => setFilterMonth(e.target.value)}
+                className="h-9 bg-slate-950 border border-slate-800 rounded-lg px-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="all">Todos os Meses</option>
+                <option value="01">01 - Janeiro</option>
+                <option value="02">02 - Fevereiro</option>
+                <option value="03">03 - Março</option>
+                <option value="04">04 - Abril</option>
+                <option value="05">05 - Maio</option>
+                <option value="06">06 - Junho</option>
+                <option value="07">07 - Julho</option>
+                <option value="08">08 - Agosto</option>
+                <option value="09">09 - Setembro</option>
+                <option value="10">10 - Outubro</option>
+                <option value="11">11 - Novembro</option>
+                <option value="12">12 - Dezembro</option>
+              </select>
+            </div>
+
+            {hasActiveInvoiceFilters && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleClearInvoiceFilters}
+                className="h-9 px-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
+                title="Limpar filtros de busca"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                Limpar
+              </Button>
+            )}
           </div>
         </CardHeader>
 
@@ -485,13 +693,14 @@ export const AdminFinancialArea: React.FC = () => {
                   <th className="py-3 px-4">Método</th>
                   <th className="py-3 px-4">Vencimento</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Ver Pix</th>
                   <th className="py-3 px-4 text-right">Ações Rápidas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
                       Nenhuma fatura encontrada para os filtros selecionados.
                     </td>
                   </tr>
@@ -532,26 +741,41 @@ export const AdminFinancialArea: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                          {/* Ver QR Code Pix */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {/* Coluna Ver Pix dedicada */}
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleViewPix(inv)}
-                            className="h-7 px-2.5 text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white rounded-lg font-medium"
+                            className="h-7 px-2.5 text-[11px] bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white rounded-lg font-medium inline-flex items-center gap-1 border border-slate-700/60"
                             title="Visualizar QR Code Pix e Copia e Cola"
                           >
-                            <QrCode className="w-3 h-3 mr-1" />
+                            <QrCode className="w-3.5 h-3.5 mr-1 text-emerald-400" />
                             Ver Pix
                           </Button>
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          {/* Recibo de Fatura Paga */}
+                          {inv.status === 'paid' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setReceiptModalInvoice(inv)}
+                              className="h-7 px-2.5 text-[11px] bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 rounded-lg font-medium inline-flex items-center"
+                              title="Emitir Recibo / Comprovante Digital desta fatura"
+                            >
+                              <Receipt className="w-3 h-3 mr-1 text-emerald-400" />
+                              Recibo
+                            </Button>
+                          )}
 
-                          {/* Se pendente, ação de baixa manual */}
+                          {/* Se pendente, ações de baixa e cancelamento */}
                           {inv.status === 'pending' && (
                             <>
                               <Button
                                 size="sm"
                                 onClick={() => handleConfirmPayment(inv.id)}
-                                className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 rounded-lg font-semibold transition-all"
+                                className="h-7 px-2.5 text-[11px] bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 rounded-lg font-semibold transition-all inline-flex items-center"
                                 title="Confirmar recebimento manual e liquidar fatura"
                               >
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -561,13 +785,21 @@ export const AdminFinancialArea: React.FC = () => {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => cancelInvoice(inv.id)}
-                                className="h-7 px-2 text-[11px] text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg"
-                                title="Cancelar fatura"
+                                onClick={() => handleCancelInvoice(inv.id, inv.id.slice(0, 8))}
+                                className="h-7 px-2.5 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 rounded-lg font-medium inline-flex items-center gap-1"
+                                title="Cancelar fatura definitivamente"
                               >
-                                <Ban className="w-3 h-3" />
+                                <Ban className="w-3 h-3 mr-1" />
+                                Cancelar Fatura
                               </Button>
                             </>
+                          )}
+
+                          {/* Se cancelada / falhou */}
+                          {inv.status === 'failed' && (
+                            <span className="text-[11px] text-rose-400/80 font-medium inline-flex items-center gap-1">
+                              <Ban className="w-3 h-3" /> Fatura cancelada
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -890,6 +1122,120 @@ export const AdminFinancialArea: React.FC = () => {
                   Confirmar Recebimento / Dar Baixa Agora
                 </Button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Comprovante / Recibo Digital */}
+      {receiptModalInvoice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:p-0 print:bg-white"
+          onClick={e => {
+            if (e.target === e.currentTarget) setReceiptModalInvoice(null);
+          }}
+        >
+          <div className="w-full max-w-lg bg-slate-900 border border-emerald-500/40 rounded-2xl shadow-2xl p-6 space-y-4 print:border-none print:shadow-none print:bg-white print:text-black">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3 print:border-black">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0 print:border-black print:text-black">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white print:text-black">
+                    Recibo de Quitação
+                  </h3>
+                  <p className="text-xs text-slate-400 print:text-black">
+                    Spartan 3D Farm • Comprovante Oficial
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReceiptModalInvoice(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg print:hidden"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs print:bg-white print:border-black print:text-black">
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 print:border-black">
+                <span className="text-slate-400 print:text-black">Fatura:</span>
+                <span className="font-mono font-bold text-white print:text-black">{receiptModalInvoice.id}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 print:border-black">
+                <span className="text-slate-400 print:text-black">Cliente:</span>
+                <span className="font-bold text-white print:text-black">{receiptModalInvoice.clientName}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 print:border-black">
+                <span className="text-slate-400 print:text-black">Valor Pago:</span>
+                <span className="text-sm font-bold text-emerald-400 print:text-black">
+                  R$ {receiptModalInvoice.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 print:border-black">
+                <span className="text-slate-400 print:text-black">Forma de Pagamento:</span>
+                <span className="font-medium text-slate-200 print:text-black">Pix Instantâneo</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 print:border-black">
+                <span className="text-slate-400 print:text-black">Data da Liquidação:</span>
+                <span className="font-medium text-slate-200 print:text-black">
+                  {receiptModalInvoice.paidAt ? new Date(receiptModalInvoice.paidAt).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-slate-400 print:text-black">Status:</span>
+                <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/15 px-2 py-0.5 rounded-full text-[11px] print:border print:border-black">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> LIQUIDADO
+                </span>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-400 space-y-1 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 print:bg-white print:border-black print:text-black">
+              <p>• <strong>Beneficiário:</strong> {pixConfig.nomeTitular || 'Spartan 3D Farm'}</p>
+              <p>• <strong>Chave Pix:</strong> {pixConfig.chave || 'Não informada'}</p>
+              <p className="text-[10px] text-slate-500 print:text-black">Este recibo comprova a quitação integral do valor indicado para os serviços da plataforma Spartan 3D.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800 print:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setReceiptModalInvoice(null)}
+                className="border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs"
+              >
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleCopyReceipt(receiptModalInvoice)}
+                className="border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold"
+              >
+                {copiedReceipt ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
+                    Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 mr-1.5" />
+                    Copiar WhatsApp
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => window.print()}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Imprimir / Salvar PDF
+              </Button>
             </div>
           </div>
         </div>

@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, History, Layers, Package, Pencil, Plus, Search, X } from 'lucide-react';
 
 const TIPOS: FilamentoEstoque['tipo'][] = ['PLA', 'PETG', 'ABS', 'TPU', 'ASA', 'RESINA', 'NYLON', 'PC'];
@@ -54,9 +55,30 @@ export const EstoqueFilamentos: React.FC = () => {
     </header>
 
     <section className="grid gap-3 sm:grid-cols-3">
-      <SummaryCard icon={Package} label="Carretéis cadastrados" value={`${filamentos.length}`} detail="Filamentos e resinas" />
-      <SummaryCard icon={Layers} label="Valor restante" value={money(stockValue)} detail="Estimativa pelo peso atual" />
-      <SummaryCard icon={AlertTriangle} label="Estoque baixo" value={`${lowStock.length}`} detail="No mínimo configurado" warning={lowStock.length > 0} />
+      <SummaryCard 
+        icon={Package} 
+        label="Carretéis cadastrados" 
+        value={`${filamentos.length}`} 
+        detail="Filamentos e resinas catalogados" 
+        badge={`${filamentos.length} disponíveis`}
+        tone="indigo"
+      />
+      <SummaryCard 
+        icon={Layers} 
+        label="Valor em estoque" 
+        value={money(stockValue)} 
+        detail="Estimativa patrimonial pelo peso restante" 
+        badge="Ativo circulante"
+        tone="emerald"
+      />
+      <SummaryCard 
+        icon={AlertTriangle} 
+        label="Estoque baixo" 
+        value={`${lowStock.length}`} 
+        detail={lowStock.length > 0 ? "Abaixo do peso mínimo configurado" : "Nenhum material em estado crítico"} 
+        badge={lowStock.length > 0 ? "Reposição imediata" : "Nível seguro"}
+        tone={lowStock.length > 0 ? "rose" : "amber"}
+      />
     </section>
 
     {showForm && <Card className="rounded-2xl border-slate-800 bg-slate-900 p-5">
@@ -107,5 +129,62 @@ export const EstoqueFilamentos: React.FC = () => {
   </div>;
 };
 
-const SummaryCard: React.FC<{ icon: typeof Package; label: string; value: string; detail: string; warning?: boolean }> = ({ icon: Icon, label, value, detail, warning }) => <Card className="rounded-2xl border-slate-800 bg-slate-900 p-4"><div className="flex items-center justify-between"><span className="text-sm text-slate-400">{label}</span><Icon className={`h-4 w-4 ${warning ? 'text-amber-400' : 'text-indigo-400'}`} /></div><p className="mt-2 text-2xl font-black text-white">{value}</p><p className="text-xs text-slate-500">{detail}</p></Card>;
+interface SummaryCardProps {
+  icon: typeof Package;
+  label: string;
+  value: string;
+  detail: string;
+  badge: string;
+  tone: 'indigo' | 'emerald' | 'amber' | 'rose';
+}
+
+const SummaryCard: React.FC<SummaryCardProps> = ({ icon: Icon, label, value, detail, badge, tone }) => {
+  const toneMap = {
+    indigo: {
+      border: 'border-indigo-500/30 hover:border-indigo-500/60',
+      iconBox: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+      badge: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300',
+    },
+    emerald: {
+      border: 'border-emerald-500/30 hover:border-emerald-500/60',
+      iconBox: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+    },
+    amber: {
+      border: 'border-amber-500/30 hover:border-amber-500/60',
+      iconBox: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+      badge: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    },
+    rose: {
+      border: 'border-rose-500/30 hover:border-rose-500/60',
+      iconBox: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
+      badge: 'bg-rose-500/10 border-rose-500/30 text-rose-300',
+    },
+  };
+  const theme = toneMap[tone];
+
+  return (
+    <Card className={`bg-slate-900 border ${theme.border} rounded-2xl shadow-lg transition-all`}>
+      <div className="p-5 flex flex-col justify-between h-full space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`p-1.5 rounded-lg border ${theme.iconBox}`}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label}</span>
+          </div>
+          <Badge className={`${theme.badge} text-[10px] px-2 py-0.5 font-bold`}>
+            {badge}
+          </Badge>
+        </div>
+        <div>
+          <p className="text-2xl lg:text-3xl font-black text-white tracking-tight">{value}</p>
+        </div>
+        <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+          <span>{detail}</span>
+        </div>
+      </div>
+    </Card>
+  );
+};
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => <label className="block space-y-1 text-xs text-slate-300">{label}{children}</label>;

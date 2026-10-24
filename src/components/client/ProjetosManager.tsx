@@ -202,7 +202,84 @@ export const ProjetosManager: React.FC = () => {
   return <div className="space-y-6">
     <div className="flex flex-col items-start justify-between gap-4 xl:flex-row xl:items-center"><div><h2 className="flex items-center gap-2 text-xl font-bold text-white"><FolderKanban className="h-5 w-5 text-indigo-400" />Projetos e orçamentos</h2><p className="mt-1 text-sm text-slate-400">Acompanhe cada trabalho do orçamento à produção.</p></div><div className="flex flex-wrap items-center gap-2"><div className="flex gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1">{([{ days: 1, label: 'Hoje' }, { days: 7, label: '7 dias' }, { days: 30, label: '30 dias' }, { days: 90, label: '90 dias' }] as const).map(option => <button type="button" key={option.days} onClick={() => setPeriodo(option.days)} aria-pressed={periodo === option.days} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${periodo === option.days ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>{option.label}</button>)}</div><Button type="button" variant="outline" onClick={() => void handleRefresh()} disabled={refreshing} className="h-10 border-slate-700 bg-slate-900 text-slate-200 hover:border-indigo-500"><RefreshCw className={`mr-2 h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />Atualizar</Button><Link to="/cliente/calculadora"><Button size="sm" className="h-10 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500"><Plus className="mr-1 h-4 w-4" />Novo projeto / orçamento</Button></Link></div></div>
 
-    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">{([{ id: 'todos', label: 'Todos', count: counts.todos }, { id: 'orcamento', label: 'Orçamentos', count: counts.orcamento }, { id: 'producao', label: 'Produção', count: counts.producao }, { id: 'concluido', label: 'Concluídos', count: counts.concluido }] as const).map(item => <button key={item.id} onClick={() => setFiltro(item.id)} className={`rounded-xl border p-3 text-left transition-colors ${filtro === item.id ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}><span className="block text-xs text-slate-400">{item.label}</span><strong className="mt-1 block text-lg text-white">{item.count}</strong></button>)}</section>
+    <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {([
+        { 
+          id: 'todos' as const, 
+          label: 'Todos os Trabalhos', 
+          count: counts.todos, 
+          badge: 'Geral', 
+          detail: 'Histórico e ativos',
+          activeBg: 'border-indigo-500 ring-2 ring-indigo-500/30',
+          idleBg: 'border-indigo-500/30 hover:border-indigo-500/60',
+          badgeClass: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300',
+        },
+        { 
+          id: 'orcamento' as const, 
+          label: 'Orçamentos', 
+          count: counts.orcamento, 
+          badge: 'Aguardando', 
+          detail: 'Propostas abertas',
+          activeBg: 'border-amber-500 ring-2 ring-amber-500/30',
+          idleBg: 'border-amber-500/30 hover:border-amber-500/60',
+          badgeClass: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+        },
+        { 
+          id: 'producao' as const, 
+          label: 'Em Produção', 
+          count: counts.producao, 
+          badge: 'Fila & Máquinas', 
+          detail: 'Na fila ou imprimindo',
+          activeBg: 'border-sky-500 ring-2 ring-sky-500/30',
+          idleBg: 'border-sky-500/30 hover:border-sky-500/60',
+          badgeClass: 'bg-sky-500/10 border-sky-500/30 text-sky-300',
+        },
+        { 
+          id: 'concluido' as const, 
+          label: 'Concluídos', 
+          count: counts.concluido, 
+          badge: 'Entregues', 
+          detail: 'Peças finalizadas',
+          activeBg: 'border-emerald-500 ring-2 ring-emerald-500/30',
+          idleBg: 'border-emerald-500/30 hover:border-emerald-500/60',
+          badgeClass: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+        },
+      ]).map(item => {
+        const isSelected = filtro === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setFiltro(item.id)}
+            className={`text-left rounded-2xl border bg-slate-900 transition-all shadow-lg ${
+              isSelected ? item.activeBg : item.idleBg
+            }`}
+          >
+            <div className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  {item.label}
+                </span>
+                <Badge className={`${item.badgeClass} text-[10px] px-2 py-0.5 font-bold`}>
+                  {item.badge}
+                </Badge>
+              </div>
+              <div>
+                <strong className="text-2xl lg:text-3xl font-black text-white tracking-tight">
+                  {item.count}
+                </strong>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>{item.detail}</span>
+                {isSelected && (
+                  <span className="text-[10px] font-bold text-indigo-400">Ativo</span>
+                )}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </section>
     <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input value={busca} onChange={event => setBusca(event.target.value)} placeholder="Buscar projeto ou cliente" aria-label="Buscar projeto ou cliente" className="border-slate-800 bg-slate-900 pl-9 text-white" /></div>
 
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projectsFiltered.map(project => { const assignedPrinter = impressoras.find(printer => printer.id === project.impressoraId); return <ProjectCard key={project.id} project={project} printerName={assignedPrinter?.nome} printerCanStart={assignedPrinter?.status === 'disponivel'} onView={setViewProject} onEdit={setEditProject} onDelete={handleDelete} onPdf={openPdf} onStatus={updateProjetoStatus} onStartWithPrinter={handleOpenStartProduction} />; })}</section>

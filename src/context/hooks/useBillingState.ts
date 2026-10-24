@@ -33,7 +33,7 @@ export function useBillingState() {
       const names = new Map(mappedClients.map(client => [client.id, client.name]));
       setInvoices((invoiceRows || []).map((row: any) => ({
         id: row.id, clientId: row.user_id, clientName: names.get(row.user_id) || 'Assinante', amount: Number(row.amount),
-        status: row.status === 'paid' ? 'paid' : row.status === 'failed' ? 'failed' : 'pending',
+        status: row.status === 'paid' ? 'paid' : (row.status === 'failed' || row.status === 'canceled') ? 'failed' : 'pending',
         dueDate: row.due_date, paidAt: row.paid_at || undefined, method: row.method,
       })) as Invoice[]);
     } else {
@@ -41,7 +41,7 @@ export function useBillingState() {
       if (error) throw error;
       setInvoices((data || []).map((row: any) => ({
         id: row.id, clientId: row.user_id, clientName: user.name, amount: Number(row.amount),
-        status: row.status === 'paid' ? 'paid' : row.status === 'failed' ? 'failed' : 'pending',
+        status: row.status === 'paid' ? 'paid' : (row.status === 'failed' || row.status === 'canceled') ? 'failed' : 'pending',
         dueDate: row.due_date, paidAt: row.paid_at || undefined, method: row.method,
       })) as Invoice[]);
       setClients([]);
@@ -206,12 +206,16 @@ export function useBillingState() {
   };
 
   const cancelInvoice = async (invoiceId: string) => {
-    if (!supabase) return;
+    if (!supabase) {
+      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'failed' } : inv));
+      toast.info('Fatura cancelada com sucesso.');
+      return;
+    }
     try {
       const { error } = await supabase.from('spartan_invoices').update({ status: 'canceled' }).eq('id', invoiceId);
       if (error) throw error;
       setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'failed' } : inv));
-      toast.info('Fatura cancelada.');
+      toast.info('Fatura cancelada com sucesso.');
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Falha ao cancelar fatura.');

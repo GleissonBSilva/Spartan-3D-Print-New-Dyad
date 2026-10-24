@@ -4,10 +4,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { User } from '@/types/saas';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Camera, ImagePlus, UserRound, Sliders, Check, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { Camera, ImagePlus, UserRound, Sliders, Check, RotateCcw, Image as ImageIcon, Palette } from 'lucide-react';
+import { ThemeMode, getSavedTheme, saveTheme } from '@/services/themeService';
 
 interface ClientSettingsFormProps {
   user: User | null;
@@ -21,6 +23,23 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
   const [avatar, setAvatar] = useState(user?.avatar || '');
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Estado do Tema Visual (Atual vs Sakura)
+  const [theme, setTheme] = useState<ThemeMode>(() => getSavedTheme(user?.id));
+
+  useEffect(() => {
+    setTheme(getSavedTheme(user?.id));
+  }, [user?.id]);
+
+  const handleSelectTheme = (newTheme: ThemeMode) => {
+    setTheme(newTheme);
+    saveTheme(newTheme, user?.id);
+    toast.success(
+      newTheme === 'sakura'
+        ? '🌸 Tema Rosa Flor de Sakura ativado com sucesso!'
+        : '⚡ Tema Spartan Dark (Atual) ativado com sucesso!'
+    );
+  };
 
   // Estados do Papel de Parede da Farm (estritamente isolados por user.id)
   const [bgImage, setBgImage] = useState<string>('');
@@ -198,6 +217,101 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
         </CardContent>
       </Card>
 
+      {/* SEÇÃO DE TEMA VISUAL DA FARM */}
+      <Card className="bg-slate-900 border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">
+        <CardHeader className="p-0 pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg sm:text-xl text-white font-bold flex items-center gap-2">
+              <Palette className="h-5 w-5 text-indigo-400" /> Tema de Cor da Farm
+            </CardTitle>
+            <Badge className="bg-indigo-500/10 border-indigo-500/30 text-indigo-300 text-xs px-2.5 py-0.5 font-bold">
+              {theme === 'sakura' ? '🌸 Flor de Sakura' : '⚡ Spartan Dark'}
+            </Badge>
+          </div>
+          <CardDescription className="text-sm text-slate-300">
+            Escolha o estilo de cores da sua plataforma. Desenvolvido com alto contraste e máxima nitidez de leitura.
+          </CardDescription>
+        </CardHeader>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          {/* Opção 1: Tema Spartan Dark (Atual) */}
+          <button
+            type="button"
+            onClick={() => handleSelectTheme('default')}
+            className={`p-4 rounded-2xl border text-left transition-all relative overflow-hidden group ${
+              theme === 'default'
+                ? 'border-indigo-500 bg-indigo-950/20 ring-2 ring-indigo-500/30'
+                : 'border-slate-800 bg-slate-950/50 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚡</span>
+                <span className="font-bold text-white text-sm">Spartan Dark (Atual)</span>
+              </div>
+              {theme === 'default' && (
+                <Badge className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 font-bold">
+                  Ativo
+                </Badge>
+              )}
+            </div>
+
+            {/* Miniatura representativa */}
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 mb-3">
+              <div className="flex items-center justify-between">
+                <div className="h-2 w-16 bg-slate-700 rounded" />
+                <div className="h-2 w-8 bg-indigo-500 rounded" />
+              </div>
+              <div className="h-6 w-full bg-indigo-600 rounded-lg flex items-center justify-center text-[10px] text-white font-bold">
+                Botão Spartan
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Design clássico escuro com acentos em ciano e índigo, com visual técnico e focado.
+            </p>
+          </button>
+
+          {/* Opção 2: Tema Rosa Flor de Sakura (Feminino) */}
+          <button
+            type="button"
+            onClick={() => handleSelectTheme('sakura')}
+            className={`p-4 rounded-2xl border text-left transition-all relative overflow-hidden group ${
+              theme === 'sakura'
+                ? 'border-pink-500 bg-pink-950/30 ring-2 ring-pink-500/40'
+                : 'border-slate-800 bg-slate-950/50 hover:border-pink-500/40'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🌸</span>
+                <span className="font-bold text-pink-200 text-sm">Rosa Flor de Sakura</span>
+              </div>
+              {theme === 'sakura' && (
+                <Badge className="bg-pink-600 text-white text-[10px] px-2 py-0.5 font-bold">
+                  Ativo
+                </Badge>
+              )}
+            </div>
+
+            {/* Miniatura representativa */}
+            <div className="p-3 rounded-xl bg-[#1c0e20] border border-[#5d2563] space-y-2 mb-3">
+              <div className="flex items-center justify-between">
+                <div className="h-2 w-16 bg-[#a85590] rounded" />
+                <div className="h-2 w-8 bg-pink-400 rounded" />
+              </div>
+              <div className="h-6 w-full bg-pink-500 rounded-lg flex items-center justify-center text-[10px] text-white font-bold shadow-sm shadow-pink-500/30">
+                Botão Sakura
+              </div>
+            </div>
+
+            <p className="text-xs text-pink-200/80 leading-relaxed">
+              Inspirado na Flor de Cerejeira (Sakura). Tons rosados sofisticados com botões e escritas de máxima nitidez.
+            </p>
+          </button>
+        </div>
+      </Card>
+
       {/* SEÇÃO DE PAPEL DE PAREDE E APARÊNCIA DA FARM */}
       <Card className="bg-slate-900 border-slate-800 rounded-2xl p-5 sm:p-6 space-y-6">
         <CardHeader className="p-0 pb-2">
@@ -228,8 +342,8 @@ export const ClientSettingsForm: React.FC<ClientSettingsFormProps> = ({ user, on
               <input 
                 type="range" 
                 min="0.05" 
-                max="0.6" 
-                step="0.02" 
+                max="1" 
+                step="0.01" 
                 value={bgOpacity}
                 onChange={(e) => setBgOpacity(Number(e.target.value))}
                 className="w-full accent-indigo-500 cursor-pointer"

@@ -34,6 +34,7 @@ import type { LucideIcon } from 'lucide-react';
 import { registerPushDevice } from '@/services/notificationService';
 import { canAccessAdmin } from '@/lib/permissions';
 import { SPARTAN_OFFICIAL_WHATSAPP_NUMBER, SPARTAN_OFFICIAL_WHATSAPP_DISPLAY } from '@/services/whatsappService';
+import { ThemeMode, initTheme, saveTheme } from '@/services/themeService';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -83,6 +84,28 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     window.addEventListener('spartan_wallpaper_updated', loadWallpaper);
     return () => window.removeEventListener('spartan_wallpaper_updated', loadWallpaper);
   }, [user?.id]);
+
+  // Tema Visual (Atual Spartan vs Rosa Sakura)
+  const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => initTheme(user?.id));
+
+  useEffect(() => {
+    initTheme(user?.id);
+    const handleThemeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ theme: ThemeMode }>;
+      if (customEvent.detail?.theme) {
+        setCurrentTheme(customEvent.detail.theme);
+      }
+    };
+    window.addEventListener('spartan_theme_changed', handleThemeChange);
+    return () => window.removeEventListener('spartan_theme_changed', handleThemeChange);
+  }, [user?.id]);
+
+  const handleToggleTheme = () => {
+    const nextTheme: ThemeMode = currentTheme === 'sakura' ? 'default' : 'sakura';
+    saveTheme(nextTheme, user?.id);
+    setCurrentTheme(nextTheme);
+    toast.success(nextTheme === 'sakura' ? '🌸 Tema Rosa Flor de Sakura ativado!' : '⚡ Tema Spartan Dark ativado!');
+  };
 
   const hasAdminAccess = canAccessAdmin(user);
   const isAdmin = location.pathname.startsWith('/admin');
@@ -163,6 +186,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               <MessageCircle className="h-5 w-5" />
             </a>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleToggleTheme}
+            aria-label="Alternar tema de cor"
+            title={currentTheme === 'sakura' ? 'Mudar para Tema Atual (Spartan Dark)' : 'Mudar para Tema Rosa Flor de Sakura'}
+            className="mr-1 h-10 w-10 p-0 flex items-center justify-center rounded-xl border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/20 text-base"
+          >
+            {currentTheme === 'sakura' ? '🌸' : '⚡'}
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -338,6 +371,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                     </a>
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleToggleTheme}
+                  title={currentTheme === 'sakura' ? 'Mudar para Tema Spartan Dark (Atual)' : 'Mudar para Tema Rosa Flor de Sakura (Feminino)'}
+                  className={`h-10 px-3.5 rounded-xl border transition-all font-semibold text-xs flex items-center gap-1.5 shadow-sm ${
+                    currentTheme === 'sakura'
+                      ? 'border-pink-500/50 bg-pink-500/20 text-pink-200 hover:bg-pink-500/30'
+                      : 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-600'
+                  }`}
+                >
+                  <span className="text-sm">{currentTheme === 'sakura' ? '🌸' : '⚡'}</span>
+                  <span className="hidden sm:inline font-bold">
+                    {currentTheme === 'sakura' ? 'Rosa Sakura' : 'Tema Atual'}
+                  </span>
+                </Button>
                 <Button size="sm" variant="outline" onClick={handleEnableNotifications} aria-label="Ativar notificações push" className="h-10 border-indigo-400/40 bg-indigo-500/15 px-4 text-sm font-semibold text-indigo-100 hover:bg-indigo-500/25 hover:text-white"><Bell className="mr-2 h-4 w-4" />Ativar avisos</Button>
               </div>
             </header>

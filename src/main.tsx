@@ -2,6 +2,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./globals.css";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { initTheme } from "@/services/themeService";
+
+// Inicializa o tema visual salvo (Spartan Dark ou Rosa Flor de Sakura)
+initTheme();
 
 // Limpa qualquer Service Worker e CacheStorage residual em todos os ambientes
 // para garantir carregamento sempre atualizado e sem cruzamento de sessão.

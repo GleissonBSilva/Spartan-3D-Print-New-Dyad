@@ -41,7 +41,7 @@ export const ClientAiAutomationCard: React.FC<ClientAiAutomationCardProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <Card className="lg:col-span-2 bg-slate-900 border-slate-800 rounded-2xl">
+      <Card className="lg:col-span-2 bg-slate-900 border border-indigo-500/30 rounded-2xl shadow-lg">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -57,7 +57,7 @@ export const ClientAiAutomationCard: React.FC<ClientAiAutomationCardProps> = ({
                 </CardDescription>
               </div>
             </div>
-            <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+            <Badge className="bg-indigo-500/10 border-indigo-500/30 text-indigo-300 text-xs font-bold">
               500 créditos / geração
             </Badge>
           </div>
@@ -112,12 +112,19 @@ export const ClientAiAutomationCard: React.FC<ClientAiAutomationCardProps> = ({
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900 border-slate-800 rounded-2xl">
+      <Card className="bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-lg">
         <CardHeader>
-          <CardTitle className="text-base text-white font-bold">Fatura & Cobrança</CardTitle>
-          <CardDescription className="text-xs text-slate-400">
-            Pagamento instantâneo via Pix ou Cartão
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base text-white font-bold">Fatura & Cobrança</CardTitle>
+              <CardDescription className="text-xs text-slate-400">
+                Pagamento instantâneo via Pix ou Cartão
+              </CardDescription>
+            </div>
+            <Badge className="bg-emerald-500/10 border-emerald-500/30 text-emerald-300 text-[10px] px-2 py-0.5 font-bold">
+              Automático
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-3">
