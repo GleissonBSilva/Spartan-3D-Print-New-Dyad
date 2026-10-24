@@ -1056,6 +1056,30 @@ export const AdminFinancialArea: React.FC = () => {
               </div>
             </div>
 
+            {/* Chave Pix de Destino */}
+            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 px-3 flex items-center justify-between text-[11px]">
+              <div className="min-w-0">
+                <span className="text-slate-400 block text-[10px]">Chave Pix Receptora:</span>
+                <span className="font-mono text-cyan-300 font-semibold truncate block">
+                  {pixConfig.chave || 'Chave não cadastrada'}
+                </span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingConfig(pixConfig);
+                  setShowConfigModal(true);
+                }}
+                className="h-6 px-2 text-[10px] text-slate-400 hover:text-white shrink-0 ml-2"
+                title="Alterar Chave Pix nas configurações"
+              >
+                <Settings2 className="w-3 h-3 mr-1 text-indigo-400" />
+                Alterar Chave
+              </Button>
+            </div>
+
             {/* QR Code */}
             <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-inner">
               <img

@@ -4,6 +4,7 @@ import {
   calculateCRC16,
   getSavedPixConfig,
   savePixConfig,
+  normalizePixKey,
   DEFAULT_PIX_CONFIG,
   PixConfig,
 } from './pixService';
@@ -15,7 +16,23 @@ describe('pixService', () => {
     expect(crc).toBe('29B1');
   });
 
-  it('generates valid Pix payload with mandatory EMV tags', () => {
+  it('normalizes Pix keys according to Bacen standards', () => {
+    // Telefone precisa de formato internacional E.164 (+55)
+    expect(normalizePixKey('92991463640', 'telefone')).toBe('+5592991463640');
+    expect(normalizePixKey('(92) 99146-3640', 'telefone')).toBe('+5592991463640');
+    expect(normalizePixKey('+5592991463640', 'telefone')).toBe('+5592991463640');
+
+    // CPF (somente dígitos)
+    expect(normalizePixKey('123.456.789-00', 'cpf')).toBe('12345678900');
+
+    // CNPJ (somente dígitos)
+    expect(normalizePixKey('12.345.678/0001-99', 'cnpj')).toBe('12345678000199');
+
+    // E-mail (minúsculo e sem espaços)
+    expect(normalizePixKey('  GsRoboticMania@Gmail.com  ', 'email')).toBe('gsroboticmania@gmail.com');
+  });
+
+  it('generates valid Pix payload with mandatory EMV tags and standard Bacen format', () => {
     const payload = generatePixPayload({
       chave: '12345678000199',
       nomeTitular: 'Spartan 3D',
@@ -25,8 +42,10 @@ describe('pixService', () => {
     });
 
     expect(payload).toContain('000201'); // Payload Format Indicator
+    expect(payload).toContain('010211'); // Point of Initiation Method: Static (obrigatório para apps bancários)
     expect(payload).toContain('br.gov.bcb.pix'); // GUI Pix
     expect(payload).toContain('12345678000199'); // Chave
+    expect(payload).not.toContain('FATURA'); // Não deve quebrar a tag 26 com subtags com espaços
     expect(payload).toContain('5303986'); // Moeda Real
     expect(payload).toContain('5406150.00'); // Valor
     expect(payload).toContain('5802BR'); // País

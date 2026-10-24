@@ -222,6 +222,19 @@ export const ClientInvoicesList: React.FC<ClientInvoicesListProps> = ({
               </div>
             </div>
 
+            {/* Chave Pix do Beneficiário */}
+            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 px-3 flex items-center justify-between text-[11px]">
+              <div className="min-w-0">
+                <span className="text-slate-400 block text-[10px]">Chave Pix do Beneficiário:</span>
+                <span className="font-mono text-cyan-300 font-semibold truncate block">
+                  {pixConfig.chave || 'Chave não cadastrada'}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
+                {pixConfig.nomeTitular || 'Spartan 3D Farm'}
+              </span>
+            </div>
+
             {/* QR Code */}
             <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-inner">
               <img
